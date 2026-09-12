@@ -1,6 +1,6 @@
-export type Person = "Alex" | "Mia" | "Shared";
+export type Person = "Ruru" | "Joselle" | "Shared";
 export type IncomePerson = "Husband" | "Wife" | "Shared";
-export type ThemeMode = "light" | "dark";
+export type ThemeMode = "light";
 export type PaymentMethod =
   | "Cash"
   | "GCash"
@@ -86,7 +86,7 @@ export interface Expense {
   name: string;
   amount: number;
   category: string;
-  paidBy: "Alex" | "Mia" | "Shared Money";
+  paidBy: "Ruru" | "Joselle" | "Shared Money";
   date: string;
   paymentMethod: PaymentMethod;
   cutoffId: string;

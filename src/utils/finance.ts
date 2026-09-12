@@ -252,5 +252,5 @@ export const calculateMonthlySummary = (state: BudgetState, monthPrefix: string)
 export const normalizeImportedState = (state: BudgetState): BudgetState => ({
   ...state,
   activeCutoffId: state.activeCutoffId || state.cutoffs[0]?.id || "",
-  profile: { ...state.profile, currency: "PHP" }
+  profile: { ...state.profile, currency: "PHP", theme: "light" }
 });

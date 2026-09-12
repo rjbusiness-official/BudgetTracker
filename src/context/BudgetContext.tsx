@@ -1,7 +1,9 @@
-"use client";
+﻿"use client";
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { createDemoBudgetState } from "@/src/data/demoData";
+import { useAuth } from "@/src/context/AuthContext";
+import { supabase, supabaseHouseholdId } from "@/src/lib/supabase";
 import type {
   Bill,
   BudgetCategory,
@@ -19,7 +21,7 @@ import type {
 } from "@/src/types/budget";
 import { eachDay, getActiveCutoff, normalizeImportedState, uid } from "@/src/utils/finance";
 
-const storageKey = "cutoff-household-budget-v1";
+const storageKey = "cutoff-household-budget-v2-ruru-joselle";
 
 interface BudgetActions {
   setActiveCutoff: (cutoffId: string) => void;
@@ -55,9 +57,18 @@ interface BudgetActions {
   deleteFamilyShare: (id: string) => void;
 }
 
+interface BudgetSyncStatus {
+  isLoading: boolean;
+  isSaving: boolean;
+  error: string;
+  lastSavedAt: string | null;
+  source: "local" | "supabase";
+}
+
 interface BudgetContextValue {
   state: BudgetState;
   actions: BudgetActions;
+  sync: BudgetSyncStatus;
 }
 
 const BudgetContext = createContext<BudgetContextValue | null>(null);
@@ -76,19 +87,88 @@ const loadInitialState = () => {
 };
 
 export function BudgetProvider({ children }: { children: React.ReactNode }) {
+  const { user } = useAuth();
   const [state, setState] = useState<BudgetState>(loadInitialState);
+  const [remoteReady, setRemoteReady] = useState(!supabase);
+  const [sync, setSync] = useState<BudgetSyncStatus>({
+    isLoading: Boolean(supabase),
+    isSaving: false,
+    error: "",
+    lastSavedAt: null,
+    source: supabase ? "supabase" : "local"
+  });
+
+  useEffect(() => {
+    if (!supabase || !user) {
+      setRemoteReady(true);
+      setSync((current) => ({ ...current, isLoading: false, source: "local" }));
+      return;
+    }
+
+    let alive = true;
+    setRemoteReady(false);
+    setSync((current) => ({ ...current, isLoading: true, error: "", source: "supabase" }));
+
+    supabase
+      .from("household_budgets")
+      .select("budget_state, updated_at")
+      .eq("id", supabaseHouseholdId)
+      .limit(1)
+      .then(({ data, error }) => {
+        if (!alive) return;
+        if (error) {
+          setSync((current) => ({ ...current, isLoading: false, error: error.message }));
+          setRemoteReady(true);
+          return;
+        }
+
+        const remote = data?.[0] as { budget_state?: BudgetState; updated_at?: string } | undefined;
+        if (remote?.budget_state) setState(normalizeImportedState(remote.budget_state));
+        setSync((current) => ({ ...current, isLoading: false, error: "", lastSavedAt: remote?.updated_at || current.lastSavedAt }));
+        setRemoteReady(true);
+      });
+
+    return () => {
+      alive = false;
+    };
+  }, [user]);
 
   useEffect(() => {
     window.localStorage.setItem(storageKey, JSON.stringify(state));
-    document.documentElement.classList.toggle("dark", state.profile.theme === "dark");
-  }, [state]);
+    document.documentElement.classList.remove("dark");
+
+    if (!supabase || !user || !remoteReady) return;
+
+    setSync((current) => ({ ...current, isSaving: true, error: "" }));
+    const timeout = window.setTimeout(() => {
+      supabase
+        .from("household_budgets")
+        .upsert({
+          id: supabaseHouseholdId,
+          owner_id: user.id,
+          budget_state: state,
+          updated_at: new Date().toISOString()
+        }, { onConflict: "id" })
+        .then(({ error }) => {
+          setSync((current) => ({
+            ...current,
+            isSaving: false,
+            error: error?.message || "",
+            lastSavedAt: error ? current.lastSavedAt : new Date().toISOString(),
+            source: "supabase"
+          }));
+        });
+    }, 700);
+
+    return () => window.clearTimeout(timeout);
+  }, [remoteReady, state, user]);
 
   const setActiveCutoff = useCallback((cutoffId: string) => {
     setState((current) => ({ ...current, activeCutoffId: cutoffId }));
   }, []);
 
   const updateProfile = useCallback((profile: Partial<CoupleProfile>) => {
-    setState((current) => ({ ...current, profile: { ...current.profile, ...profile, currency: "PHP" } }));
+    setState((current) => ({ ...current, profile: { ...current.profile, ...profile, currency: "PHP", theme: "light" } }));
   }, []);
 
   const resetDemoData = useCallback(() => setState(createDemoBudgetState()), []);
@@ -372,7 +452,7 @@ export function BudgetProvider({ children }: { children: React.ReactNode }) {
     deleteFamilyShare
   ]);
 
-  return <BudgetContext.Provider value={{ state, actions }}>{children}</BudgetContext.Provider>;
+  return <BudgetContext.Provider value={{ state, actions, sync }}>{children}</BudgetContext.Provider>;
 }
 
 export const useBudget = () => {

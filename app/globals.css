@@ -1,8 +1,8 @@
-@import "tailwindcss";
+﻿@import "tailwindcss";
 
 :root {
-  --background: #f8fafc;
-  --foreground: #0f172a;
+  --background: #ded8ff;
+  --foreground: #2f3654;
 }
 
 @theme inline {
@@ -17,11 +17,14 @@
 
 html {
   scroll-behavior: smooth;
+  color-scheme: light;
+  background: var(--background);
 }
 
 body {
+  color-scheme: light;
   min-height: 100vh;
-  background: var(--background);
+  background: radial-gradient(circle at top left, #f6f1ff 0, #ded8ff 42%, #cfc8ff 100%);
   color: var(--foreground);
   font-family: "Inter", "Segoe UI", Arial, Helvetica, sans-serif;
 }
@@ -38,6 +41,15 @@ textarea {
   outline: none;
 }
 
-.dark {
-  color-scheme: dark;
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #ded8ff;
+    --foreground: #2f3654;
+  }
+
+  body {
+    background: radial-gradient(circle at top left, #f6f1ff 0, #ded8ff 42%, #cfc8ff 100%);
+    color: var(--foreground);
+  }
 }

@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { FormEvent } from "react";
@@ -20,6 +20,7 @@ import {
   Landmark,
   LayoutDashboard,
   List,
+  LogOut,
   Pencil,
   PhilippinePeso,
   PiggyBank,
@@ -52,6 +53,7 @@ import {
   XAxis,
   YAxis
 } from "recharts";
+import { AuthProvider, useAuth } from "@/src/context/AuthContext";
 import { BudgetProvider, useBudget } from "@/src/context/BudgetContext";
 import type {
   Bill,
@@ -131,7 +133,7 @@ const navItems: NavItem[] = [
 const paymentMethods: PaymentMethod[] = ["Cash", "GCash", "Maya", "Bank Transfer", "Debit Card", "Credit Card", "Other"];
 const incomeTypes: Income["type"][] = ["Salary", "Overtime", "Bonus", "Freelance", "Business", "Commission", "Other"];
 const expenseFallbackCategories = ["Food", "Gas", "Parking", "Monthly Bills", "Debt Payments", "Family Share", "Shopping", "Planned Purchases", "Personal", "Transportation", "Medical", "Entertainment", "Others"];
-const chartColors = ["#0f766e", "#16a34a", "#f59e0b", "#ef4444", "#3b82f6", "#8b5cf6", "#14b8a6", "#f97316", "#64748b", "#84cc16", "#ec4899"];
+const chartColors = ["#6c63f6", "#2cc5a7", "#f5bd3d", "#ef5d7a", "#2f3654", "#a8a1ff", "#c7c2ff", "#7b70ff", "#d9d6ff", "#f0b6c7", "#9aa3b2"];
 
 function getString(form: FormData, key: string) {
   return String(form.get(key) || "").trim();
@@ -146,7 +148,7 @@ function sum(values: number[]) {
 }
 
 function useActiveFinance() {
-  const { state, actions } = useBudget();
+  const { state, actions, sync } = useBudget();
   return useMemo(() => {
     const cutoff = getActiveCutoff(state);
     const categories = categoriesForCutoff(state, cutoff.id);
@@ -170,6 +172,7 @@ function useActiveFinance() {
     return {
       state,
       actions,
+      sync,
       cutoff,
       categories,
       incomes,
@@ -190,7 +193,7 @@ function useActiveFinance() {
       safe,
       recommended
     };
-  }, [state, actions]);
+  }, [state, actions, sync]);
 }
 
 function categoryNames(categories: BudgetCategory[]) {
@@ -209,21 +212,23 @@ export default function BudgetApp() {
   }
 
   return (
-    <BudgetProvider>
-      <HashRouter>
-        <AppShell />
-      </HashRouter>
-    </BudgetProvider>
+    <AuthProvider>
+      <BudgetProvider>
+        <HashRouter>
+          <AppShell />
+        </HashRouter>
+      </BudgetProvider>
+    </AuthProvider>
   );
 }
 
 function AppLoading() {
   return (
-    <div className="flex min-h-screen items-center justify-center bg-slate-50 p-6 dark:bg-slate-950">
-      <div className="w-full max-w-md rounded-lg border border-slate-200 bg-white p-6 text-center shadow-sm dark:border-slate-800 dark:bg-slate-900">
-        <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-lg bg-teal-600 text-white"><Wallet size={24} /></div>
-        <h1 className="mt-4 text-xl font-semibold text-slate-950 dark:text-white">Cutoff Budget Tracker</h1>
-        <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">Loading your household budget workspace.</p>
+    <div className="flex min-h-screen items-center justify-center bg-slate-50 p-6">
+      <div className="w-full max-w-md rounded-lg border border-slate-200 bg-white p-6 text-center shadow-sm">
+        <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-lg bg-[#6c63f6] text-white"><Wallet size={24} /></div>
+        <h1 className="mt-4 text-xl font-semibold text-slate-950">Budget Tracker</h1>
+        <p className="mt-2 text-sm text-slate-500">Loading your household budget workspace.</p>
       </div>
     </div>
   );
@@ -231,62 +236,89 @@ function AppLoading() {
 
 function AppShell() {
   const data = useActiveFinance();
+  const { signOut } = useAuth();
   const [quickOpen, setQuickOpen] = useState(false);
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-950 dark:bg-slate-950 dark:text-white">
-      <aside className="fixed inset-y-0 left-0 z-30 hidden w-72 border-r border-slate-200 bg-white px-4 py-5 dark:border-slate-800 dark:bg-slate-950 lg:block">
-        <div className="flex items-center gap-3 px-2">
-          <span className="flex h-11 w-11 items-center justify-center rounded-lg bg-teal-600 text-white"><Wallet size={22} /></span>
-          <div>
-            <p className="text-sm font-semibold text-slate-500 dark:text-slate-400">Household Budget</p>
-            <p className="font-semibold">Alex and Mia</p>
+    <div className="min-h-screen bg-[#ded8ff] p-3 text-slate-900 md:p-6 lg:h-screen lg:overflow-hidden lg:p-10">
+      <div className="mx-auto grid min-h-[calc(100vh-1.5rem)] max-w-[1500px] overflow-hidden rounded-[2rem] bg-[#f6f4ff] p-3 shadow-[0_32px_90px_rgba(103,93,198,0.22)] md:min-h-[calc(100vh-3rem)] md:p-5 lg:h-[calc(100vh-5rem)] lg:min-h-0 lg:grid-cols-[248px_minmax(0,1fr)] lg:gap-5 lg:p-6">
+        <aside className="hidden h-full min-h-0 flex-col overflow-hidden rounded-[1.75rem] bg-[#6c63f6] p-4 text-white shadow-[0_22px_50px_rgba(103,93,198,0.30)] lg:flex">
+          <div className="flex items-center gap-3 rounded-2xl bg-white/12 p-3">
+            <span className="relative flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-white text-[#6c63f6] shadow-[0_12px_28px_rgba(47,54,84,0.16)]">
+              <Heart size={23} fill="currentColor" strokeWidth={1.5} />
+              <PhilippinePeso className="absolute -bottom-1 -right-1 rounded-full bg-[#2cc5a7] p-0.5 text-white shadow-sm" size={17} />
+            </span>
+            <div className="min-w-0">
+              <p className="text-sm font-semibold text-white/70">Budget Tracker</p>
+              <p className="truncate font-semibold">{data.state.profile.husbandName} and {data.state.profile.wifeName}</p>
+            </div>
           </div>
-        </div>
-        <nav className="mt-7 grid gap-1">
-          {navItems.map((item) => <SideLink key={item.path} item={item} />)}
-        </nav>
-      </aside>
-      <div className="lg:pl-72">
-        <header className="sticky top-0 z-20 border-b border-slate-200 bg-white/90 px-4 py-3 backdrop-blur dark:border-slate-800 dark:bg-slate-950/90 md:px-6">
-          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+          <nav className="mt-6 flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto pr-1" aria-label="Desktop navigation">
+            {navItems.filter((item) => item.path !== "/settings").map((item) => <SidebarLink key={item.path} item={item} />)}
+          </nav>
+          <div className="mt-4 grid gap-3 rounded-2xl bg-white/12 p-3 text-sm">
             <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-teal-700 dark:text-teal-300">Current cutoff</p>
-              <p className="font-semibold text-slate-950 dark:text-white">{data.cutoff.label}</p>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-white/60">Active cutoff</p>
+              <p className="mt-1 font-semibold text-white">{data.cutoff.label}</p>
             </div>
-            <div className="flex flex-wrap items-center gap-2">
-              <select className={cn(inputClass, "w-full md:w-64")} value={data.state.activeCutoffId} onChange={(event) => data.actions.setActiveCutoff(event.target.value)} aria-label="Switch cutoff">
-                {data.state.cutoffs.map((cutoff) => <option key={cutoff.id} value={cutoff.id}>{cutoff.label}</option>)}
-              </select>
-              <Button variant="secondary" onClick={() => data.actions.updateProfile({ theme: data.state.profile.theme === "dark" ? "light" : "dark" })} title="Toggle theme">
-                <CircleDollarSign size={17} /> {data.state.profile.theme === "dark" ? "Light" : "Dark"}
-              </Button>
-              <Button onClick={() => setQuickOpen(true)}><Plus size={17} /> Add Transaction</Button>
+            <div>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-white/60">Cloud sync</p>
+              <p className="mt-1 font-semibold text-white">{data.sync.isLoading ? "Loading" : data.sync.isSaving ? "Saving" : data.sync.error ? "Needs setup" : "Saved"}</p>
+              {data.sync.error ? <p className="mt-1 text-xs leading-5 text-white/70">{data.sync.error}</p> : null}
             </div>
+            <button className="mt-1 inline-flex min-h-10 items-center justify-center gap-2 rounded-xl bg-white/15 px-3 text-sm font-semibold text-white transition hover:bg-white/25" onClick={() => void signOut()} type="button">
+              <LogOut size={16} /> Sign out
+            </button>
           </div>
-        </header>
-        <main className="px-4 py-6 pb-28 md:px-6 lg:pb-8">
-          <Routes>
-            <Route path="/" element={<Navigate to="/dashboard" replace />} />
-            <Route path="/dashboard" element={<DashboardPage />} />
-            <Route path="/budget" element={<CutoffBudgetPage />} />
-            <Route path="/daily" element={<DailyBudgetPage />} />
-            <Route path="/income" element={<IncomePage />} />
-            <Route path="/expenses" element={<ExpensesPage />} />
-            <Route path="/bills" element={<BillsPage />} />
-            <Route path="/debts" element={<DebtsPage />} />
-            <Route path="/savings" element={<SavingsPage />} />
-            <Route path="/wishlist" element={<WishlistPage />} />
-            <Route path="/family" element={<FamilySharePage />} />
-            <Route path="/reports" element={<ReportsPage />} />
-            <Route path="/transactions" element={<TransactionHistoryPage />} />
-            <Route path="/settings" element={<SettingsPage />} />
-          </Routes>
-        </main>
+        </aside>
+        <div className="min-w-0 lg:flex lg:h-full lg:min-h-0 lg:flex-col">
+          <header className="sticky top-3 z-20 rounded-[1.75rem] border border-white/80 bg-white/95 px-4 py-3 shadow-[0_18px_45px_rgba(47,54,84,0.08)] backdrop-blur md:px-5 lg:static lg:shrink-0">
+            <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+              <div className="flex min-w-0 items-center gap-3">
+                <span className="relative flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-[#6c63f6] to-[#8d85ff] text-white shadow-[0_12px_28px_rgba(103,93,198,0.28)] lg:hidden">
+                  <Heart size={23} fill="currentColor" strokeWidth={1.5} />
+                  <PhilippinePeso className="absolute -bottom-1 -right-1 rounded-full bg-white p-0.5 text-[#6c63f6] shadow-sm" size={17} />
+                </span>
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-[#6c63f6]">Budget Tracker</p>
+                  <p className="truncate font-semibold lg:text-lg">{data.state.profile.husbandName} and {data.state.profile.wifeName}</p>
+                </div>
+              </div>
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center xl:justify-end">
+                <div className="rounded-lg bg-[#f7f8fb] px-3 py-2 text-sm shadow-inner shadow-slate-200/70">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#6c63f6]">Current cutoff</p>
+                  <p className="font-semibold text-slate-800">{data.cutoff.label}</p>
+                </div>
+                <select className={cn(inputClass, "w-full sm:w-60")} value={data.state.activeCutoffId} onChange={(event) => data.actions.setActiveCutoff(event.target.value)} aria-label="Switch cutoff">
+                  {data.state.cutoffs.map((cutoff) => <option key={cutoff.id} value={cutoff.id}>{cutoff.label}</option>)}
+                </select>
+                <Button onClick={() => setQuickOpen(true)}><Plus size={17} /> Add Transaction</Button>
+              </div>
+            </div>
+          </header>
+          <main className="px-1 py-6 pb-28 md:px-2 lg:min-h-0 lg:flex-1 lg:overflow-y-auto lg:pb-8 lg:pr-2">
+            <Routes>
+              <Route path="/" element={<Navigate to="/dashboard" replace />} />
+              <Route path="/dashboard" element={<DashboardPage />} />
+              <Route path="/budget" element={<CutoffBudgetPage />} />
+              <Route path="/daily" element={<DailyBudgetPage />} />
+              <Route path="/income" element={<IncomePage />} />
+              <Route path="/expenses" element={<ExpensesPage />} />
+              <Route path="/bills" element={<BillsPage />} />
+              <Route path="/debts" element={<DebtsPage />} />
+              <Route path="/savings" element={<SavingsPage />} />
+              <Route path="/wishlist" element={<WishlistPage />} />
+              <Route path="/family" element={<FamilySharePage />} />
+              <Route path="/reports" element={<ReportsPage />} />
+              <Route path="/transactions" element={<TransactionHistoryPage />} />
+              <Route path="/settings" element={<SettingsPage />} />
+            </Routes>
+          </main>
+        </div>
       </div>
-      <nav className="fixed inset-x-0 bottom-0 z-40 flex gap-1 overflow-x-auto border-t border-slate-200 bg-white px-2 py-2 dark:border-slate-800 dark:bg-slate-950 lg:hidden">
+      <nav className="fixed inset-x-0 bottom-0 z-40 flex gap-1 overflow-x-auto border-t border-[#d8d3ff] bg-white px-2 py-2 shadow-[0_-14px_35px_rgba(103,93,198,0.14)] lg:hidden">
         {navItems.map((item) => <BottomLink key={item.path} item={item} />)}
       </nav>
-      <button className="fixed bottom-20 right-4 z-40 flex h-14 w-14 items-center justify-center rounded-full bg-teal-600 text-white shadow-xl shadow-teal-900/20 lg:hidden" onClick={() => setQuickOpen(true)} aria-label="Add transaction" type="button">
+      <button className="fixed bottom-20 right-4 z-40 flex h-14 w-14 items-center justify-center rounded-full bg-[#6c63f6] text-white shadow-xl shadow-indigo-300/50 lg:hidden" onClick={() => setQuickOpen(true)} aria-label="Add transaction" type="button">
         <Plus size={24} />
       </button>
       {quickOpen ? <QuickEntryModal onClose={() => setQuickOpen(false)} /> : null}
@@ -294,11 +326,11 @@ function AppShell() {
   );
 }
 
-function SideLink({ item }: { item: NavItem }) {
+function SidebarLink({ item }: { item: NavItem }) {
   const Icon = item.icon;
   return (
-    <NavLink to={item.path} className={({ isActive }) => cn("flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-semibold transition", isActive ? "bg-slate-950 text-white dark:bg-white dark:text-slate-950" : "text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-900")}>
-      <Icon size={18} /> {item.label}
+    <NavLink to={item.path} className={({ isActive }) => cn("flex min-h-11 items-center gap-3 rounded-xl px-3 text-sm font-semibold transition", isActive ? "bg-white text-[#5b52e6] shadow-[0_12px_26px_rgba(47,54,84,0.14)]" : "text-white/75 hover:bg-white/12 hover:text-white")}>
+      <Icon size={18} /> <span>{item.label}</span>
     </NavLink>
   );
 }
@@ -306,7 +338,7 @@ function SideLink({ item }: { item: NavItem }) {
 function BottomLink({ item }: { item: NavItem }) {
   const Icon = item.icon;
   return (
-    <NavLink to={item.path} className={({ isActive }) => cn("flex min-w-20 flex-col items-center justify-center gap-1 rounded-lg px-2 py-1.5 text-[11px] font-semibold", isActive ? "bg-slate-950 text-white dark:bg-white dark:text-slate-950" : "text-slate-500 dark:text-slate-300")}>
+    <NavLink to={item.path} className={({ isActive }) => cn("flex min-w-20 flex-col items-center justify-center gap-1 rounded-lg px-2 py-1.5 text-[11px] font-semibold", isActive ? "bg-[#6c63f6] text-white" : "text-slate-500")}>
       <Icon size={18} /> <span>{item.label}</span>
     </NavLink>
   );
@@ -341,12 +373,12 @@ function DashboardPage() {
         <SummaryCard label="Recommended Daily" value={formatCurrency(data.recommended)} helper={String(daysRemaining(data.cutoff, today)) + " days until payday"} icon={Target} tone="warning" />
       </div>
       <div className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
-        <Panel className="bg-slate-950 text-white dark:bg-slate-900">
+        <Panel className="border-white bg-white text-slate-950 shadow-[0_22px_48px_rgba(47,54,84,0.10)]">
           <div className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
             <div>
-              <p className="text-sm font-semibold uppercase tracking-[0.2em] text-teal-300">Today</p>
+              <p className="text-sm font-semibold uppercase tracking-[0.2em] text-[#6c63f6]">Today</p>
               <h2 className="mt-2 text-3xl font-semibold">{formatLongDate(todayPlan?.date || today)}</h2>
-              <p className="mt-2 text-slate-300">Next payday: {formatLongDate(data.cutoff.payday)}</p>
+              <p className="mt-2 text-slate-500">Next payday: {formatLongDate(data.cutoff.payday)}</p>
             </div>
             <StatusBadge label={todayStatus.label} tone={todayStatus.tone} />
           </div>
@@ -373,7 +405,7 @@ function DashboardPage() {
         </Panel>
       </div>
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <SummaryCard label="Combined Income" value={formatCurrency(data.incomeTotal)} helper={"Alex: " + formatCurrency(incomeByPerson(data.incomes, "Husband")) + " | Mia: " + formatCurrency(incomeByPerson(data.incomes, "Wife"))} icon={Wallet} />
+        <SummaryCard label="Combined Income" value={formatCurrency(data.incomeTotal)} helper={data.state.profile.husbandName + ": " + formatCurrency(incomeByPerson(data.incomes, "Husband")) + " | " + data.state.profile.wifeName + ": " + formatCurrency(incomeByPerson(data.incomes, "Wife"))} icon={Wallet} />
         <SummaryCard label="Total Allocated" value={formatCurrency(data.allocated)} helper={unallocatedMoney(data.incomeTotal, data.categories) >= 0 ? formatCurrency(unallocatedMoney(data.incomeTotal, data.categories)) + " still available" : "Exceeded by " + formatCurrency(Math.abs(unallocatedMoney(data.incomeTotal, data.categories)))} icon={Target} tone={unallocatedMoney(data.incomeTotal, data.categories) >= 0 ? "success" : "danger"} />
         <SummaryCard label="Debt Payments" value={formatCurrency(data.debtPaid)} helper="Payments recorded this cutoff" icon={Landmark} />
         <SummaryCard label="Savings" value={formatCurrency(data.savingsMoved)} helper="Moved to protected goals" icon={PiggyBank} tone="success" />
@@ -396,9 +428,9 @@ function DashboardPage() {
           <h2 className="text-lg font-semibold">Alerts</h2>
           <div className="mt-4 grid gap-3">
             {alerts.map((alert) => (
-              <div className="flex gap-3 rounded-lg border border-slate-200 p-3 text-sm dark:border-slate-800" key={alert}>
+              <div className="flex gap-3 rounded-lg border border-slate-200 p-3 text-sm" key={alert}>
                 <AlertTriangle className="mt-0.5 text-amber-500" size={18} />
-                <p className="text-slate-700 dark:text-slate-300">{alert}</p>
+                <p className="text-slate-700">{alert}</p>
               </div>
             ))}
           </div>
@@ -410,33 +442,33 @@ function DashboardPage() {
 
 function TodayMetric({ label, value, helper }: { label: string; value: number; helper?: string }) {
   return (
-    <div className="rounded-lg bg-white/10 p-4">
-      <p className="text-sm text-slate-300">{label}</p>
+    <div className="rounded-lg border border-[#d8d3ff] bg-[#f8f7ff] p-4">
+      <p className="text-sm text-slate-500">{label}</p>
       <p className="mt-2 text-xl font-semibold"><MoneyDisplay value={value} /></p>
-      {helper ? <p className="text-sm text-slate-400">{helper}</p> : null}
+      {helper ? <p className="text-sm text-slate-500">{helper}</p> : null}
     </div>
   );
 }
 
 function MoneyRow({ label, value, strong }: { label: string; value: number; strong?: boolean }) {
-  return <div className={cn("flex items-center justify-between gap-4", strong && "border-t border-slate-200 pt-3 font-semibold dark:border-slate-800")}><span>{label}</span><MoneyDisplay value={value} /></div>;
+  return <div className={cn("flex items-center justify-between gap-4", strong && "border-t border-slate-200 pt-3 font-semibold")}><span>{label}</span><MoneyDisplay value={value} /></div>;
 }
 
 function BudgetCategoryRow({ category, actual, health }: { category: BudgetCategory; actual: number; health: { label: string; tone: Tone } }) {
   const remaining = category.planned - actual;
   const used = usagePercentage(actual, category.planned);
   return (
-    <div className="rounded-lg border border-slate-200 p-3 dark:border-slate-800">
+    <div className="rounded-lg border border-slate-200 p-3">
       <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
         <div>
           <p className="font-semibold">{category.name}</p>
-          <p className="text-sm text-slate-500 dark:text-slate-400">Budget <MoneyDisplay value={category.planned} /> | Spent <MoneyDisplay value={actual} /> | Remaining <MoneyDisplay value={remaining} /></p>
+          <p className="text-sm text-slate-500">Budget <MoneyDisplay value={category.planned} /> | Spent <MoneyDisplay value={actual} /> | Remaining <MoneyDisplay value={remaining} /></p>
         </div>
         <StatusBadge label={actual > category.planned ? "Over by " + formatCurrency(Math.abs(remaining)) : health.label} tone={health.tone} />
       </div>
       <div className="mt-3 flex items-center gap-3">
         <ProgressBar value={used} tone={health.tone === "danger" ? "danger" : health.tone === "warning" ? "warning" : "success"} />
-        <span className="w-16 text-right text-sm font-semibold text-slate-600 dark:text-slate-300">{used.toFixed(0)}%</span>
+        <span className="w-16 text-right text-sm font-semibold text-slate-600">{used.toFixed(0)}%</span>
       </div>
     </div>
   );
@@ -455,10 +487,10 @@ function CutoffBudgetPage() {
   };
   return (
     <div className="grid gap-6">
-      <PageHeader title="Cutoff Budget" description="Create the salary cutoff plan before spending. Allocations recalculate instantly." actions={<Button variant="secondary" onClick={data.actions.copyPreviousBudget}><Clock size={17} /> Copy Previous Cutoff Budget</Button>} />
+      <PageHeader title="Cutoff Budget" description="Record your actual take-home income for this cutoff first, then allocate it. This supports taxes, deductions, bonuses, and changing pay." actions={<Button variant="secondary" onClick={data.actions.copyPreviousBudget}><Clock size={17} /> Copy Previous Cutoff Budget</Button>} />
       <div className="grid gap-4 md:grid-cols-4">
-        <SummaryCard label="Alex Salary" value={formatCurrency(incomeByPerson(data.incomes, "Husband"))} helper="Husband income" icon={PhilippinePeso} />
-        <SummaryCard label="Mia Salary" value={formatCurrency(incomeByPerson(data.incomes, "Wife"))} helper="Wife income" icon={PhilippinePeso} />
+        <SummaryCard label="Ruru Income" value={formatCurrency(incomeByPerson(data.incomes, "Husband"))} helper="Recorded this cutoff" icon={PhilippinePeso} />
+        <SummaryCard label="Joselle Income" value={formatCurrency(incomeByPerson(data.incomes, "Wife"))} helper="Recorded this cutoff" icon={PhilippinePeso} />
         <SummaryCard label="Additional Income" value={formatCurrency(incomeByPerson(data.incomes, "Shared"))} helper="Shared or other income" icon={Plus} />
         <SummaryCard label="Combined Income" value={formatCurrency(data.incomeTotal)} helper="Total money received" icon={Wallet} tone="accent" />
       </div>
@@ -466,13 +498,13 @@ function CutoffBudgetPage() {
         <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <div>
             <h2 className="text-lg font-semibold">Allocation Formula</h2>
-            <p className="text-sm text-slate-500 dark:text-slate-400">Combined income minus all allocations equals unallocated money.</p>
+            <p className="text-sm text-slate-500">Combined income minus all allocations equals unallocated money.</p>
           </div>
           <StatusBadge label={unallocated >= 0 ? formatCurrency(unallocated) + " available to allocate" : "Budget exceeded by " + formatCurrency(Math.abs(unallocated))} tone={unallocated >= 0 ? "success" : "danger"} />
         </div>
         <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
           {data.categories.map((category) => (
-            <div key={category.id} className="rounded-lg border border-slate-200 p-3 dark:border-slate-800">
+            <div key={category.id} className="rounded-lg border border-slate-200 p-3">
               <Field label={category.name} hint={category.group === "reserved" ? "Reserved money" : category.group === "savings" ? "Protected savings" : "Spendable allocation"}>
                 <input className={inputClass} type="number" min="0" step="0.01" value={category.planned} onChange={(event) => data.actions.updateCategory({ ...category, planned: Number(event.target.value) })} />
               </Field>
@@ -518,7 +550,7 @@ function DailyBudgetPage() {
         <SummaryCard label="Actual So Far" value={formatCurrency(data.spending)} helper="Recorded expenses" icon={Receipt} />
         <SummaryCard label="Smart Daily Budget" value={formatCurrency(data.recommended)} helper="Based on remaining spendable money" icon={TrendingDown} tone="accent" />
       </div>
-      {totalDailyPlan > data.spendable ? <Panel className="border-amber-300 bg-amber-50 dark:border-amber-900 dark:bg-amber-950"><p className="text-sm font-semibold text-amber-800 dark:text-amber-200">Warning: daily planned spending exceeds available spendable budget by {formatCurrency(totalDailyPlan - data.spendable)}.</p></Panel> : null}
+      {totalDailyPlan > data.spendable ? <Panel className="border-amber-300 bg-amber-50"><p className="text-sm font-semibold text-amber-800">Warning: daily planned spending exceeds available spendable budget by {formatCurrency(totalDailyPlan - data.spendable)}.</p></Panel> : null}
       <Panel>
         <div className={view === "calendar" ? "grid gap-3 sm:grid-cols-2 xl:grid-cols-5" : "grid gap-3"}>
           {data.dailyPlans.map((daily) => {
@@ -526,18 +558,18 @@ function DailyBudgetPage() {
             const diff = daily.planned - actual;
             const status = dailyStatus(daily.planned, actual);
             return (
-              <div key={daily.id} className="rounded-lg border border-slate-200 p-3 dark:border-slate-800">
+              <div key={daily.id} className="rounded-lg border border-slate-200 p-3">
                 <div className="flex items-start justify-between gap-3">
                   <button className="text-left" onClick={() => setSelectedDay(daily.date)} type="button">
                     <p className="font-semibold">{formatLongDate(daily.date)}</p>
-                    <p className="text-sm text-slate-500 dark:text-slate-400">{diff >= 0 ? formatCurrency(diff) + " under budget" : formatCurrency(Math.abs(diff)) + " over budget"}</p>
+                    <p className="text-sm text-slate-500">{diff >= 0 ? formatCurrency(diff) + " under budget" : formatCurrency(Math.abs(diff)) + " over budget"}</p>
                   </button>
                   <StatusBadge label={status.label.replace("Comfortably ", "")} tone={status.tone} />
                 </div>
                 <div className="mt-3 grid gap-2 md:grid-cols-3">
                   <Field label="Planned"><input className={inputClass} type="number" min="0" step="0.01" value={daily.planned} onChange={(event) => data.actions.setDailyPlan(daily.date, Number(event.target.value))} /></Field>
-                  <div><p className="text-sm font-medium text-slate-700 dark:text-slate-200">Actual</p><p className="mt-2 font-semibold"><MoneyDisplay value={actual} /></p></div>
-                  <div><p className="text-sm font-medium text-slate-700 dark:text-slate-200">Difference</p><p className={cn("mt-2 font-semibold", diff >= 0 ? "text-emerald-600" : "text-rose-600")}><MoneyDisplay value={Math.abs(diff)} /></p></div>
+                  <div><p className="text-sm font-medium text-slate-700">Actual</p><p className="mt-2 font-semibold"><MoneyDisplay value={actual} /></p></div>
+                  <div><p className="text-sm font-medium text-slate-700">Difference</p><p className={cn("mt-2 font-semibold", diff >= 0 ? "text-emerald-600" : "text-rose-600")}><MoneyDisplay value={Math.abs(diff)} /></p></div>
                 </div>
                 <div className="mt-3 flex items-center gap-2">
                   <ProgressBar value={usagePercentage(actual, daily.planned)} tone={status.tone === "danger" ? "danger" : status.tone === "warning" ? "warning" : "success"} />
@@ -560,7 +592,7 @@ function DailyBudgetPage() {
               const category = data.categories.find((item) => item.id === plan.categoryId);
               const actual = category ? sum(selectedExpenses.filter((expense) => expense.category === category.name).map((expense) => expense.amount)) : 0;
               return <MoneyRow key={plan.categoryId} label={(category?.name || "Category") + " planned vs actual"} value={plan.planned - actual} />;
-            }) : <p className="text-sm text-slate-500 dark:text-slate-400">No category-level plans set for this day.</p>}
+            }) : <p className="text-sm text-slate-500">No category-level plans set for this day.</p>}
           </div>
           <div>
             <h3 className="font-semibold">Transactions</h3>
@@ -568,7 +600,7 @@ function DailyBudgetPage() {
               {selectedExpenses.length ? selectedExpenses.map((expense) => <LedgerRow key={expense.id} left={expense.name} meta={expense.category + " | " + expense.paymentMethod} amount={expense.amount} />) : <EmptyState title="No spending recorded" description="Add an expense to update this day automatically." />}
             </div>
           </div>
-          {selectedPlan.planned < dailyActual(data.expenses, selectedPlan.date) ? <Panel className="bg-rose-50 dark:bg-rose-950"><p className="text-sm text-rose-800 dark:text-rose-200">You overspent by {formatCurrency(dailyActual(data.expenses, selectedPlan.date) - selectedPlan.planned)}. Reduce average spending by around {formatCurrency((dailyActual(data.expenses, selectedPlan.date) - selectedPlan.planned) / Math.max(1, data.dailyPlans.filter((day) => day.date > selectedPlan.date).length))} for the remaining days to stay within your cutoff budget.</p></Panel> : null}
+          {selectedPlan.planned < dailyActual(data.expenses, selectedPlan.date) ? <Panel className="bg-rose-50"><p className="text-sm text-rose-800">You overspent by {formatCurrency(dailyActual(data.expenses, selectedPlan.date) - selectedPlan.planned)}. Reduce average spending by around {formatCurrency((dailyActual(data.expenses, selectedPlan.date) - selectedPlan.planned) / Math.max(1, data.dailyPlans.filter((day) => day.date > selectedPlan.date).length))} for the remaining days to stay within your cutoff budget.</p></Panel> : null}
         </div>
       </Modal> : null}
     </div>
@@ -576,7 +608,7 @@ function DailyBudgetPage() {
 }
 
 function LedgerRow({ left, meta, amount, action }: { left: string; meta: string; amount: number; action?: React.ReactNode }) {
-  return <div className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 p-3 dark:border-slate-800"><div><p className="font-semibold">{left}</p><p className="text-sm text-slate-500 dark:text-slate-400">{meta}</p></div><div className="flex items-center gap-2"><p className="font-semibold"><MoneyDisplay value={amount} /></p>{action}</div></div>;
+  return <div className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 p-3"><div><p className="font-semibold">{left}</p><p className="text-sm text-slate-500">{meta}</p></div><div className="flex items-center gap-2"><p className="font-semibold"><MoneyDisplay value={amount} /></p>{action}</div></div>;
 }
 
 function IncomePage() {
@@ -584,7 +616,8 @@ function IncomePage() {
   const [editing, setEditing] = useState<Income | null>(null);
   return (
     <div className="grid gap-6">
-      <PageHeader title="Income" description="Track Alex, Mia, and shared additional income for each cutoff." />
+      <PageHeader title="Income" description="Record the actual net money received every cutoff. Use the amount after taxes, deductions, loans, or other payroll changes." />
+      <Panel className="border-[#d8d3ff] bg-[#f8f7ff]"><div className="flex gap-3 text-sm text-[#3f3a78]"><PhilippinePeso size={18} className="mt-0.5" /><p>Income is not fixed here. Add a new income record for each cutoff using your net take-home amount, for example Joselle's 20k cutoff salary minus taxes and deductions.</p></div></Panel>
       <div className="grid gap-4 md:grid-cols-4">
         <SummaryCard label="Husband Income" value={formatCurrency(incomeByPerson(data.incomes, "Husband"))} icon={Wallet} />
         <SummaryCard label="Wife Income" value={formatCurrency(incomeByPerson(data.incomes, "Wife"))} icon={Wallet} />
@@ -622,12 +655,12 @@ function IncomeForm({ initial, onDone }: { initial?: Income | null; onDone: () =
   };
   return (
     <form className="grid gap-3 md:grid-cols-3" onSubmit={submit}>
-      <Field label="Income Source"><input className={inputClass} name="source" required defaultValue={initial?.source || ""} placeholder="Alex Salary" /></Field>
+      <Field label="Income Source"><input className={inputClass} name="source" required defaultValue={initial?.source || ""} placeholder="Joselle net salary after deductions" /></Field>
       <Field label="Person"><select className={inputClass} name="person" defaultValue={initial?.person || "Husband"}><option>Husband</option><option>Wife</option><option>Shared</option></select></Field>
-      <Field label="Amount"><input className={inputClass} name="amount" required type="number" min="0.01" step="0.01" defaultValue={initial?.amount || ""} /></Field>
+      <Field label="Amount Received (Net)" hint="Enter the actual money received after taxes and deductions."><input className={inputClass} name="amount" required type="number" min="0.01" step="0.01" defaultValue={initial?.amount || ""} /></Field>
       <Field label="Date"><input className={inputClass} name="date" required type="date" defaultValue={initial?.date || data.state.profile.demoToday} /></Field>
       <Field label="Income Type"><select className={inputClass} name="type" defaultValue={initial?.type || "Salary"}>{incomeTypes.map((type) => <option key={type}>{type}</option>)}</select></Field>
-      <Field label="Notes"><input className={inputClass} name="notes" defaultValue={initial?.notes || ""} placeholder="Optional" /></Field>
+      <Field label="Notes"><input className={inputClass} name="notes" defaultValue={initial?.notes || ""} placeholder="Tax, SSS, Pag-IBIG, loans, other deductions" /></Field>
       <div className="md:col-span-3 flex gap-2"><Button type="submit"><CheckCircle size={17} /> {initial ? "Save Income" : "Add Income"}</Button>{initial ? <Button variant="secondary" onClick={onDone}>Cancel</Button> : null}</div>
     </form>
   );
@@ -687,7 +720,7 @@ function ExpenseForm({ initial, onDone }: { initial?: Expense | null; onDone: ()
       <Field label="Expense Name"><input className={inputClass} name="name" required defaultValue={initial?.name || ""} placeholder="Lunch" /></Field>
       <Field label="Amount"><input className={inputClass} name="amount" required type="number" min="0.01" step="0.01" defaultValue={initial?.amount || ""} /></Field>
       <Field label="Category"><select className={inputClass} name="category" defaultValue={initial?.category || "Food"}>{names.map((name) => <option key={name}>{name}</option>)}</select></Field>
-      <Field label="Paid By"><select className={inputClass} name="paidBy" defaultValue={initial?.paidBy || "Shared Money"}><option>Alex</option><option>Mia</option><option>Shared Money</option></select></Field>
+      <Field label="Paid By"><select className={inputClass} name="paidBy" defaultValue={initial?.paidBy || "Shared Money"}><option>Ruru</option><option>Joselle</option><option>Shared Money</option></select></Field>
       <Field label="Payment Method"><select className={inputClass} name="paymentMethod" defaultValue={initial?.paymentMethod || "Cash"}>{paymentMethods.map((method) => <option key={method}>{method}</option>)}</select></Field>
       <Field label="Date"><input className={inputClass} name="date" required type="date" defaultValue={initial?.date || data.state.profile.demoToday} /></Field>
       <Field label="Notes"><input className={inputClass} name="notes" defaultValue={initial?.notes || ""} placeholder="Optional" /></Field>
@@ -715,7 +748,7 @@ function BillsPage() {
 }
 
 function BillGroup({ title, bills, data, onEdit }: { title: string; bills: Bill[]; data: ReturnType<typeof useActiveFinance>; onEdit: (bill: Bill) => void }) {
-  return <Panel><h2 className="font-semibold">{title}</h2><div className="mt-3 grid gap-2">{bills.length ? bills.map((bill) => <div key={bill.id} className="rounded-lg border border-slate-200 p-3 dark:border-slate-800"><div className="flex items-start justify-between"><div><p className="font-semibold">{bill.name}</p><p className="text-sm text-slate-500 dark:text-slate-400">Due {formatShortDate(bill.dueDate)}</p></div><StatusBadge label={billStatus(bill, data.state.profile.demoToday)} tone={billStatus(bill, data.state.profile.demoToday) === "Overdue" ? "danger" : bill.status === "Paid" ? "success" : "warning"} /></div><p className="mt-2 font-semibold"><MoneyDisplay value={bill.amount} /></p><div className="mt-3 flex gap-2"><Button variant="secondary" onClick={() => data.actions.markBillPaid(bill.id, true)} disabled={bill.status === "Paid"}><CheckCircle size={16} /> Paid</Button><Button variant="ghost" onClick={() => onEdit(bill)} title="Edit bill"><Pencil size={16} /></Button><Button variant="ghost" onClick={() => data.actions.deleteBill(bill.id)} title="Delete bill"><Trash2 size={16} /></Button></div></div>) : <EmptyState title="Nothing here" description="No bills in this section." />}</div></Panel>;
+  return <Panel><h2 className="font-semibold">{title}</h2><div className="mt-3 grid gap-2">{bills.length ? bills.map((bill) => <div key={bill.id} className="rounded-lg border border-slate-200 p-3"><div className="flex items-start justify-between"><div><p className="font-semibold">{bill.name}</p><p className="text-sm text-slate-500">Due {formatShortDate(bill.dueDate)}</p></div><StatusBadge label={billStatus(bill, data.state.profile.demoToday)} tone={billStatus(bill, data.state.profile.demoToday) === "Overdue" ? "danger" : bill.status === "Paid" ? "success" : "warning"} /></div><p className="mt-2 font-semibold"><MoneyDisplay value={bill.amount} /></p><div className="mt-3 flex gap-2"><Button variant="secondary" onClick={() => data.actions.markBillPaid(bill.id, true)} disabled={bill.status === "Paid"}><CheckCircle size={16} /> Paid</Button><Button variant="ghost" onClick={() => onEdit(bill)} title="Edit bill"><Pencil size={16} /></Button><Button variant="ghost" onClick={() => data.actions.deleteBill(bill.id)} title="Delete bill"><Trash2 size={16} /></Button></div></div>) : <EmptyState title="Nothing here" description="No bills in this section." />}</div></Panel>;
 }
 
 function BillForm({ initial, onDone }: { initial?: Bill | null; onDone: () => void }) {
@@ -746,7 +779,7 @@ function DebtsPage() {
   const [editing, setEditing] = useState<Debt | null>(null);
   const totalOriginal = sum(data.debts.map((debt) => debt.originalAmount));
   const totalRemaining = sum(data.debts.map((debt) => debt.remainingBalance));
-  return <div className="grid gap-6"><PageHeader title="Debts" description="Plan debt payments, track remaining balances, and record actual payments." /><div className="grid gap-4 md:grid-cols-4"><SummaryCard label="Original Debt" value={formatCurrency(totalOriginal)} icon={CreditCard} /><SummaryCard label="Remaining Debt" value={formatCurrency(totalRemaining)} icon={Landmark} tone="warning" /><SummaryCard label="Total Paid" value={formatCurrency(totalOriginal - totalRemaining)} icon={TrendingDown} tone="success" /><SummaryCard label="Payments This Cutoff" value={formatCurrency(data.debtPaid)} icon={CheckCircle} /></div><Panel><DebtForm key={editing?.id || "new-debt"} initial={editing} onDone={() => setEditing(null)} /></Panel><Panel><div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">{data.debts.map((debt) => <div key={debt.id} className="rounded-lg border border-slate-200 p-4 dark:border-slate-800"><div className="flex items-start justify-between"><div><p className="font-semibold">{debt.name}</p><p className="text-sm text-slate-500 dark:text-slate-400">{debt.creditor} | Due {formatShortDate(debt.dueDate)}</p></div><StatusBadge label={debt.type} tone="accent" /></div><div className="mt-4 grid gap-2 text-sm"><MoneyRow label="Original" value={debt.originalAmount} /><MoneyRow label="Remaining" value={debt.remainingBalance} /><MoneyRow label="Planned Payment" value={debt.plannedPayment} /></div><div className="mt-3"><ProgressBar value={debtProgress(debt)} tone="success" /></div><p className="mt-2 text-sm text-slate-500 dark:text-slate-400">{debtProgress(debt).toFixed(0)}% paid</p><DebtPaymentForm debt={debt} /><div className="mt-3 flex gap-2"><Button variant="ghost" onClick={() => setEditing(debt)} title="Edit debt"><Pencil size={16} /></Button><Button variant="ghost" onClick={() => data.actions.deleteDebt(debt.id)} title="Delete debt"><Trash2 size={16} /></Button></div></div>)}</div></Panel></div>;
+  return <div className="grid gap-6"><PageHeader title="Debts" description="Plan debt payments, track remaining balances, and record actual payments." /><div className="grid gap-4 md:grid-cols-4"><SummaryCard label="Original Debt" value={formatCurrency(totalOriginal)} icon={CreditCard} /><SummaryCard label="Remaining Debt" value={formatCurrency(totalRemaining)} icon={Landmark} tone="warning" /><SummaryCard label="Total Paid" value={formatCurrency(totalOriginal - totalRemaining)} icon={TrendingDown} tone="success" /><SummaryCard label="Payments This Cutoff" value={formatCurrency(data.debtPaid)} icon={CheckCircle} /></div><Panel><DebtForm key={editing?.id || "new-debt"} initial={editing} onDone={() => setEditing(null)} /></Panel><Panel><div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">{data.debts.map((debt) => <div key={debt.id} className="rounded-lg border border-slate-200 p-4"><div className="flex items-start justify-between"><div><p className="font-semibold">{debt.name}</p><p className="text-sm text-slate-500">{debt.creditor} | Due {formatShortDate(debt.dueDate)}</p></div><StatusBadge label={debt.type} tone="accent" /></div><div className="mt-4 grid gap-2 text-sm"><MoneyRow label="Original" value={debt.originalAmount} /><MoneyRow label="Remaining" value={debt.remainingBalance} /><MoneyRow label="Planned Payment" value={debt.plannedPayment} /></div><div className="mt-3"><ProgressBar value={debtProgress(debt)} tone="success" /></div><p className="mt-2 text-sm text-slate-500">{debtProgress(debt).toFixed(0)}% paid</p><DebtPaymentForm debt={debt} /><div className="mt-3 flex gap-2"><Button variant="ghost" onClick={() => setEditing(debt)} title="Edit debt"><Pencil size={16} /></Button><Button variant="ghost" onClick={() => data.actions.deleteDebt(debt.id)} title="Delete debt"><Trash2 size={16} /></Button></div></div>)}</div></Panel></div>;
 }
 
 function DebtForm({ initial, onDone }: { initial?: Debt | null; onDone: () => void }) {
@@ -771,7 +804,7 @@ function DebtPaymentForm({ debt }: { debt: Debt }) {
 function SavingsPage() {
   const data = useActiveFinance();
   const [editing, setEditing] = useState<SavingsGoal | null>(null);
-  return <div className="grid gap-6"><PageHeader title="Savings" description="Protect savings goals from normal spendable cash and track every contribution or withdrawal." /><Panel><SavingsGoalForm key={editing?.id || "new-goal"} initial={editing} onDone={() => setEditing(null)} /></Panel><div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">{data.state.savingsGoals.map((goal) => <Panel key={goal.id}><div className="flex items-start justify-between"><div><h2 className="font-semibold">{goal.name}</h2><p className="text-sm text-slate-500 dark:text-slate-400">Target {formatLongDate(goal.targetDate)}</p></div><PiggyBank className="text-teal-600" size={22} /></div><div className="mt-4 grid gap-2 text-sm"><MoneyRow label="Target" value={goal.targetAmount} /><MoneyRow label="Saved" value={goal.currentSavings} /><MoneyRow label="This Cutoff" value={goal.contributionThisCutoff} /></div><div className="mt-3"><ProgressBar value={savingsProgress(goal.currentSavings, goal.targetAmount)} tone="success" /></div><p className="mt-2 text-sm text-slate-500 dark:text-slate-400">{savingsProgress(goal.currentSavings, goal.targetAmount).toFixed(0)}% complete</p><SavingsTransactionForm goal={goal} /><div className="mt-3 flex gap-2"><Button variant="ghost" onClick={() => setEditing(goal)} title="Edit goal"><Pencil size={16} /></Button><Button variant="ghost" onClick={() => data.actions.deleteSavingsGoal(goal.id)} title="Delete goal"><Trash2 size={16} /></Button></div></Panel>)}</div></div>;
+  return <div className="grid gap-6"><PageHeader title="Savings" description="Protect savings goals from normal spendable cash and track every contribution or withdrawal." /><Panel><SavingsGoalForm key={editing?.id || "new-goal"} initial={editing} onDone={() => setEditing(null)} /></Panel><div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">{data.state.savingsGoals.map((goal) => <Panel key={goal.id}><div className="flex items-start justify-between"><div><h2 className="font-semibold">{goal.name}</h2><p className="text-sm text-slate-500">Target {formatLongDate(goal.targetDate)}</p></div><PiggyBank className="text-[#6c63f6]" size={22} /></div><div className="mt-4 grid gap-2 text-sm"><MoneyRow label="Target" value={goal.targetAmount} /><MoneyRow label="Saved" value={goal.currentSavings} /><MoneyRow label="This Cutoff" value={goal.contributionThisCutoff} /></div><div className="mt-3"><ProgressBar value={savingsProgress(goal.currentSavings, goal.targetAmount)} tone="success" /></div><p className="mt-2 text-sm text-slate-500">{savingsProgress(goal.currentSavings, goal.targetAmount).toFixed(0)}% complete</p><SavingsTransactionForm goal={goal} /><div className="mt-3 flex gap-2"><Button variant="ghost" onClick={() => setEditing(goal)} title="Edit goal"><Pencil size={16} /></Button><Button variant="ghost" onClick={() => data.actions.deleteSavingsGoal(goal.id)} title="Delete goal"><Trash2 size={16} /></Button></div></Panel>)}</div></div>;
 }
 
 function SavingsGoalForm({ initial, onDone }: { initial?: SavingsGoal | null; onDone: () => void }) {
@@ -790,7 +823,7 @@ function WishlistPage() {
   const data = useActiveFinance();
   const [editing, setEditing] = useState<WishlistItem | null>(null);
   const selected = data.state.wishlistItems[0];
-  return <div className="grid gap-6"><PageHeader title="Planned Purchases / Wishlist" description="Compare planned cost, actual cost, and available cash before buying." /><Panel><WishlistForm key={editing?.id || "new-wish"} initial={editing} onDone={() => setEditing(null)} /></Panel>{selected ? <Panel><h2 className="text-lg font-semibold">Purchase Decision Card</h2><div className="mt-4 grid gap-3 md:grid-cols-3"><MoneyRow label="Item Cost" value={selected.estimatedCost} /><MoneyRow label="Available Cash" value={data.incomeTotal - data.outflows} /><MoneyRow label="Safe to Spend" value={data.safe} /></div><div className="mt-4"><StatusBadge label={data.safe >= selected.estimatedCost ? "Affordable Within Current Plan" : data.incomeTotal - data.outflows >= selected.estimatedCost ? "Warning" : "Not Recommended Within Current Budget"} tone={data.safe >= selected.estimatedCost ? "success" : data.incomeTotal - data.outflows >= selected.estimatedCost ? "warning" : "danger"} /></div><p className="mt-3 text-xs text-slate-500 dark:text-slate-400">This is a household budgeting signal, not professional financial advice.</p></Panel> : null}<div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">{data.state.wishlistItems.map((item) => <Panel key={item.id}><div className="flex items-start justify-between"><div><h2 className="font-semibold">{item.name}</h2><p className="text-sm text-slate-500 dark:text-slate-400">{item.priority} priority | {item.status}</p></div><ShoppingCart className="text-teal-600" size={22} /></div><div className="mt-4 grid gap-2 text-sm"><MoneyRow label="Estimated" value={item.estimatedCost} /><MoneyRow label="Saved" value={item.amountSaved} /><MoneyRow label="Per Cutoff" value={item.plannedContributionPerCutoff} />{item.actualCost ? <MoneyRow label={item.actualCost <= item.estimatedCost ? "Saved vs plan" : "Overspent vs plan"} value={Math.abs(item.estimatedCost - item.actualCost)} /> : null}</div><div className="mt-3"><ProgressBar value={savingsProgress(item.amountSaved, item.estimatedCost)} tone="accent" /></div><div className="mt-3 flex flex-wrap gap-2"><Button variant="secondary" onClick={() => data.actions.markWishlistPurchased(item.id, item.estimatedCost)} disabled={item.status === "Purchased"}><CheckCircle size={16} /> Mark Purchased</Button><Button variant="ghost" onClick={() => setEditing(item)} title="Edit item"><Pencil size={16} /></Button><Button variant="ghost" onClick={() => data.actions.deleteWishlistItem(item.id)} title="Delete item"><Trash2 size={16} /></Button></div></Panel>)}</div></div>;
+  return <div className="grid gap-6"><PageHeader title="Planned Purchases / Wishlist" description="Compare planned cost, actual cost, and available cash before buying." /><Panel><WishlistForm key={editing?.id || "new-wish"} initial={editing} onDone={() => setEditing(null)} /></Panel>{selected ? <Panel><h2 className="text-lg font-semibold">Purchase Decision Card</h2><div className="mt-4 grid gap-3 md:grid-cols-3"><MoneyRow label="Item Cost" value={selected.estimatedCost} /><MoneyRow label="Available Cash" value={data.incomeTotal - data.outflows} /><MoneyRow label="Safe to Spend" value={data.safe} /></div><div className="mt-4"><StatusBadge label={data.safe >= selected.estimatedCost ? "Affordable Within Current Plan" : data.incomeTotal - data.outflows >= selected.estimatedCost ? "Warning" : "Not Recommended Within Current Budget"} tone={data.safe >= selected.estimatedCost ? "success" : data.incomeTotal - data.outflows >= selected.estimatedCost ? "warning" : "danger"} /></div><p className="mt-3 text-xs text-slate-500">This is a household budgeting signal, not professional financial advice.</p></Panel> : null}<div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">{data.state.wishlistItems.map((item) => <Panel key={item.id}><div className="flex items-start justify-between"><div><h2 className="font-semibold">{item.name}</h2><p className="text-sm text-slate-500">{item.priority} priority | {item.status}</p></div><ShoppingCart className="text-[#6c63f6]" size={22} /></div><div className="mt-4 grid gap-2 text-sm"><MoneyRow label="Estimated" value={item.estimatedCost} /><MoneyRow label="Saved" value={item.amountSaved} /><MoneyRow label="Per Cutoff" value={item.plannedContributionPerCutoff} />{item.actualCost ? <MoneyRow label={item.actualCost <= item.estimatedCost ? "Saved vs plan" : "Overspent vs plan"} value={Math.abs(item.estimatedCost - item.actualCost)} /> : null}</div><div className="mt-3"><ProgressBar value={savingsProgress(item.amountSaved, item.estimatedCost)} tone="accent" /></div><div className="mt-3 flex flex-wrap gap-2"><Button variant="secondary" onClick={() => data.actions.markWishlistPurchased(item.id, item.estimatedCost)} disabled={item.status === "Purchased"}><CheckCircle size={16} /> Mark Purchased</Button><Button variant="ghost" onClick={() => setEditing(item)} title="Edit item"><Pencil size={16} /></Button><Button variant="ghost" onClick={() => data.actions.deleteWishlistItem(item.id)} title="Delete item"><Trash2 size={16} /></Button></div></Panel>)}</div></div>;
 }
 
 function WishlistForm({ initial, onDone }: { initial?: WishlistItem | null; onDone: () => void }) {
@@ -823,7 +856,7 @@ function ReportsPage() {
   const allocation = data.categories.map((category) => ({ name: category.name, value: category.planned }));
   const monthly = calculateMonthlySummary(data.state, "2026-09");
   const performance = data.spendable ? ((data.spending - data.spendable) / data.spendable) * 100 : 0;
-  return <div className="grid gap-6"><PageHeader title="Reports" description="Review planned vs actual, cumulative pace, allocation, monthly summary, and cutoff performance." actions={<select className={inputClass} value={filter} onChange={(event) => setFilter(event.target.value)}><option>Current Cutoff</option><option>Previous Cutoff</option><option>Month</option><option>Last 3 Months</option><option>Last 6 Months</option><option>Year</option><option>Custom Date Range</option></select>} /><div className="grid gap-4 md:grid-cols-4"><SummaryCard label="Planned Spendable" value={formatCurrency(data.spendable)} icon={Target} /><SummaryCard label="Actual Spending" value={formatCurrency(data.spending)} icon={Receipt} /><SummaryCard label={data.spending <= data.spendable ? "Spent Less Than Planned" : "Overspent"} value={formatCurrency(Math.abs(data.spendable - data.spending))} icon={data.spending <= data.spendable ? TrendingDown : TrendingUp} tone={data.spending <= data.spendable ? "success" : "danger"} /><SummaryCard label="Performance" value={Math.abs(performance).toFixed(1) + "%"} helper={performance <= 0 ? "below budget" : "over budget"} icon={ChartBar} /></div><div className="grid gap-6 xl:grid-cols-2"><ChartPanel title="Planned vs Actual"><ResponsiveContainer width="100%" height={280}><BarChart data={dailySeries}><CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="date" /><YAxis tickFormatter={(value) => String(Number(value) / 1000) + "k"} /><Tooltip formatter={(value) => formatCurrency(Number(value))} /><Bar dataKey="planned" fill="#0f766e" name="Planned" radius={[6, 6, 0, 0]} /><Bar dataKey="actual" fill="#f97316" name="Actual" radius={[6, 6, 0, 0]} /></BarChart></ResponsiveContainer></ChartPanel><ChartPanel title="Cumulative Spending"><ResponsiveContainer width="100%" height={280}><LineChart data={cumulativeSeries}><CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="date" /><YAxis tickFormatter={(value) => String(Number(value) / 1000) + "k"} /><Tooltip formatter={(value) => formatCurrency(Number(value))} /><Line type="monotone" dataKey="planned" stroke="#0f766e" strokeWidth={3} name="Cumulative Planned" dot={false} /><Line type="monotone" dataKey="actual" stroke="#ef4444" strokeWidth={3} name="Cumulative Actual" dot={false} /></LineChart></ResponsiveContainer></ChartPanel><ChartPanel title="Budget Allocation"><ResponsiveContainer width="100%" height={280}><PieChart><Pie data={allocation} dataKey="value" nameKey="name" innerRadius={60} outerRadius={100} paddingAngle={2}>{allocation.map((entry, index) => <Cell key={entry.name} fill={chartColors[index % chartColors.length]} />)}</Pie><Tooltip formatter={(value) => formatCurrency(Number(value))} /></PieChart></ResponsiveContainer></ChartPanel><ChartPanel title="September Monthly Summary"><div className="grid gap-2 text-sm"><MoneyRow label="Total Household Income" value={monthly.income} /><MoneyRow label="Total Planned Spending" value={monthly.planned} /><MoneyRow label="Total Actual Spending" value={monthly.actual} /><MoneyRow label="Remaining" value={monthly.remaining} strong /><MoneyRow label="Total Under / Over" value={Math.abs(monthly.planned - monthly.actual)} /></div></ChartPanel></div></div>;
+  return <div className="grid gap-6"><PageHeader title="Reports" description="Review planned vs actual, cumulative pace, allocation, monthly summary, and cutoff performance." actions={<select className={inputClass} value={filter} onChange={(event) => setFilter(event.target.value)}><option>Current Cutoff</option><option>Previous Cutoff</option><option>Month</option><option>Last 3 Months</option><option>Last 6 Months</option><option>Year</option><option>Custom Date Range</option></select>} /><div className="grid gap-4 md:grid-cols-4"><SummaryCard label="Planned Spendable" value={formatCurrency(data.spendable)} icon={Target} /><SummaryCard label="Actual Spending" value={formatCurrency(data.spending)} icon={Receipt} /><SummaryCard label={data.spending <= data.spendable ? "Spent Less Than Planned" : "Overspent"} value={formatCurrency(Math.abs(data.spendable - data.spending))} icon={data.spending <= data.spendable ? TrendingDown : TrendingUp} tone={data.spending <= data.spendable ? "success" : "danger"} /><SummaryCard label="Performance" value={Math.abs(performance).toFixed(1) + "%"} helper={performance <= 0 ? "below budget" : "over budget"} icon={ChartBar} /></div><div className="grid gap-6 xl:grid-cols-2"><ChartPanel title="Planned vs Actual"><ResponsiveContainer width="100%" height={280}><BarChart data={dailySeries}><CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="date" /><YAxis tickFormatter={(value) => String(Number(value) / 1000) + "k"} /><Tooltip formatter={(value) => formatCurrency(Number(value))} /><Bar dataKey="planned" fill="#6c63f6" name="Planned" radius={[6, 6, 0, 0]} /><Bar dataKey="actual" fill="#2cc5a7" name="Actual" radius={[6, 6, 0, 0]} /></BarChart></ResponsiveContainer></ChartPanel><ChartPanel title="Cumulative Spending"><ResponsiveContainer width="100%" height={280}><LineChart data={cumulativeSeries}><CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="date" /><YAxis tickFormatter={(value) => String(Number(value) / 1000) + "k"} /><Tooltip formatter={(value) => formatCurrency(Number(value))} /><Line type="monotone" dataKey="planned" stroke="#6c63f6" strokeWidth={3} name="Cumulative Planned" dot={false} /><Line type="monotone" dataKey="actual" stroke="#2cc5a7" strokeWidth={3} name="Cumulative Actual" dot={false} /></LineChart></ResponsiveContainer></ChartPanel><ChartPanel title="Budget Allocation"><ResponsiveContainer width="100%" height={280}><PieChart><Pie data={allocation} dataKey="value" nameKey="name" innerRadius={60} outerRadius={100} paddingAngle={2}>{allocation.map((entry, index) => <Cell key={entry.name} fill={chartColors[index % chartColors.length]} />)}</Pie><Tooltip formatter={(value) => formatCurrency(Number(value))} /></PieChart></ResponsiveContainer></ChartPanel><ChartPanel title="September Monthly Summary"><div className="grid gap-2 text-sm"><MoneyRow label="Total Household Income" value={monthly.income} /><MoneyRow label="Total Planned Spending" value={monthly.planned} /><MoneyRow label="Total Actual Spending" value={monthly.actual} /><MoneyRow label="Remaining" value={monthly.remaining} strong /><MoneyRow label="Total Under / Over" value={Math.abs(monthly.planned - monthly.actual)} /></div></ChartPanel></div></div>;
 }
 
 function ChartPanel({ title, children }: { title: string; children: React.ReactNode }) {
@@ -837,7 +870,7 @@ function TransactionHistoryPage() {
   const [type, setType] = useState("All");
   const [cutoff, setCutoff] = useState(data.cutoff.id);
   const filtered = transactions.filter((transaction) => (type === "All" || transaction.type === type) && (cutoff === "All" || transaction.cutoffId === cutoff) && (transaction.description.toLowerCase().includes(query.toLowerCase()) || transaction.category.toLowerCase().includes(query.toLowerCase())));
-  return <div className="grid gap-6"><PageHeader title="Transaction History" description="Centralized ledger across income, expenses, bill payments, debt payments, and savings movements." /><Panel><div className="grid gap-3 md:grid-cols-3"><input className={inputClass} value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search ledger" /><select className={inputClass} value={type} onChange={(event) => setType(event.target.value)}><option>All</option><option>Income</option><option>Expense</option><option>Bill Payment</option><option>Debt Payment</option><option>Savings Contribution</option><option>Savings Withdrawal</option></select><select className={inputClass} value={cutoff} onChange={(event) => setCutoff(event.target.value)}><option value="All">All Cutoffs</option>{data.state.cutoffs.map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}</select></div><div className="mt-4 grid gap-2">{filtered.map((transaction) => <div key={transaction.id} className="grid gap-2 rounded-lg border border-slate-200 p-3 dark:border-slate-800 md:grid-cols-[140px_1fr_170px_130px]"><p className="text-sm text-slate-500 dark:text-slate-400">{formatShortDate(transaction.date)}</p><div><p className="font-semibold">{transaction.description}</p><p className="text-sm text-slate-500 dark:text-slate-400">{transaction.category} | {transaction.person}</p></div><StatusBadge label={transaction.type} tone={transaction.type === "Income" ? "success" : transaction.type.includes("Savings") ? "accent" : transaction.type.includes("Debt") ? "warning" : "neutral"} /><p className="text-right font-semibold"><MoneyDisplay value={transaction.amount} /></p></div>)}</div></Panel></div>;
+  return <div className="grid gap-6"><PageHeader title="Transaction History" description="Centralized ledger across income, expenses, bill payments, debt payments, and savings movements." /><Panel><div className="grid gap-3 md:grid-cols-3"><input className={inputClass} value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search ledger" /><select className={inputClass} value={type} onChange={(event) => setType(event.target.value)}><option>All</option><option>Income</option><option>Expense</option><option>Bill Payment</option><option>Debt Payment</option><option>Savings Contribution</option><option>Savings Withdrawal</option></select><select className={inputClass} value={cutoff} onChange={(event) => setCutoff(event.target.value)}><option value="All">All Cutoffs</option>{data.state.cutoffs.map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}</select></div><div className="mt-4 grid gap-2">{filtered.map((transaction) => <div key={transaction.id} className="grid gap-2 rounded-lg border border-slate-200 p-3 md:grid-cols-[140px_1fr_170px_130px]"><p className="text-sm text-slate-500">{formatShortDate(transaction.date)}</p><div><p className="font-semibold">{transaction.description}</p><p className="text-sm text-slate-500">{transaction.category} | {transaction.person}</p></div><StatusBadge label={transaction.type} tone={transaction.type === "Income" ? "success" : transaction.type.includes("Savings") ? "accent" : transaction.type.includes("Debt") ? "warning" : "neutral"} /><p className="text-right font-semibold"><MoneyDisplay value={transaction.amount} /></p></div>)}</div></Panel></div>;
 }
 
 function SettingsPage() {
@@ -867,9 +900,9 @@ function SettingsPage() {
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
-    data.actions.updateProfile({ husbandName: getString(form, "husbandName"), wifeName: getString(form, "wifeName"), cutoff1Start: getNumber(form, "cutoff1Start"), cutoff1End: getNumber(form, "cutoff1End"), cutoff2Start: getNumber(form, "cutoff2Start"), cutoff2End: "end", theme: getString(form, "theme") as "light" | "dark", demoToday: getString(form, "demoToday") });
+    data.actions.updateProfile({ husbandName: getString(form, "husbandName"), wifeName: getString(form, "wifeName"), cutoff1Start: getNumber(form, "cutoff1Start"), cutoff1End: getNumber(form, "cutoff1End"), cutoff2Start: getNumber(form, "cutoff2Start"), cutoff2End: "end", theme: "light", demoToday: getString(form, "demoToday") });
   };
-  return <div className="grid gap-6"><PageHeader title="Settings" description="Manage couple names, cutoff dates, theme, and local demo data." /><Panel><form className="grid gap-3 md:grid-cols-3" onSubmit={submit}><Field label="Husband Name"><input className={inputClass} name="husbandName" defaultValue={data.state.profile.husbandName} /></Field><Field label="Wife Name"><input className={inputClass} name="wifeName" defaultValue={data.state.profile.wifeName} /></Field><Field label="Currency"><input className={inputClass} value="PHP" readOnly /></Field><Field label="Cutoff 1 Start"><input className={inputClass} name="cutoff1Start" type="number" min="1" max="31" defaultValue={data.state.profile.cutoff1Start} /></Field><Field label="Cutoff 1 End"><input className={inputClass} name="cutoff1End" type="number" min="1" max="31" defaultValue={data.state.profile.cutoff1End} /></Field><Field label="Cutoff 2 Start"><input className={inputClass} name="cutoff2Start" type="number" min="1" max="31" defaultValue={data.state.profile.cutoff2Start} /></Field><Field label="Theme"><select className={inputClass} name="theme" defaultValue={data.state.profile.theme}><option value="light">Light Mode</option><option value="dark">Dark Mode</option></select></Field><Field label="Demo Today"><input className={inputClass} name="demoToday" type="date" defaultValue={data.state.profile.demoToday} /></Field><div className="flex items-end"><Button type="submit"><CheckCircle size={17} /> Save Settings</Button></div></form></Panel><Panel><h2 className="text-lg font-semibold">Data Management</h2><p className="mt-1 text-sm text-slate-500 dark:text-slate-400">This first version stores demo data in localStorage on this device.</p><div className="mt-4 flex flex-wrap gap-2"><Button variant="secondary" onClick={exportData}><ArrowDown size={17} /> Export Data</Button><Button variant="secondary" onClick={() => fileInputRef.current?.click()}><ArrowUp size={17} /> Import Data</Button><Button variant="danger" onClick={data.actions.resetDemoData}><Trash2 size={17} /> Reset Demo Data</Button></div><input ref={fileInputRef} type="file" accept="application/json" className="hidden" onChange={(event) => importData(event.target.files?.[0])} /></Panel><Panel><h2 className="text-lg font-semibold">Future Household Architecture</h2><div className="mt-3 grid gap-2 text-sm"><MoneyRow label="Household ID" value={0} /><p className="text-slate-600 dark:text-slate-300">Household: {data.state.household.id}</p><p className="text-slate-600 dark:text-slate-300">Husband user: {data.state.household.husbandUserId}</p><p className="text-slate-600 dark:text-slate-300">Wife user: {data.state.household.wifeUserId}</p></div></Panel></div>;
+  return <div className="grid gap-6"><PageHeader title="Settings" description="Manage couple names, cutoff dates, and local demo data. The app stays in light lavender mode." /><Panel><form className="grid gap-3 md:grid-cols-3" onSubmit={submit}><Field label="Husband Name"><input className={inputClass} name="husbandName" defaultValue={data.state.profile.husbandName} /></Field><Field label="Wife Name"><input className={inputClass} name="wifeName" defaultValue={data.state.profile.wifeName} /></Field><Field label="Currency"><input className={inputClass} value="PHP" readOnly /></Field><Field label="Cutoff 1 Start"><input className={inputClass} name="cutoff1Start" type="number" min="1" max="31" defaultValue={data.state.profile.cutoff1Start} /></Field><Field label="Cutoff 1 End"><input className={inputClass} name="cutoff1End" type="number" min="1" max="31" defaultValue={data.state.profile.cutoff1End} /></Field><Field label="Cutoff 2 Start"><input className={inputClass} name="cutoff2Start" type="number" min="1" max="31" defaultValue={data.state.profile.cutoff2Start} /></Field><div className="rounded-lg border border-[#d8d3ff] bg-[#f8f7ff] px-3 py-2 text-sm font-semibold text-[#5b52e6]">Light lavender mode</div><Field label="Demo Today"><input className={inputClass} name="demoToday" type="date" defaultValue={data.state.profile.demoToday} /></Field><div className="flex items-end"><Button type="submit"><CheckCircle size={17} /> Save Settings</Button></div></form></Panel><Panel><h2 className="text-lg font-semibold">Data Management</h2><p className="mt-1 text-sm text-slate-500">Budget data syncs to Supabase after login and keeps a local cache on this device.</p><div className="mt-4 flex flex-wrap gap-2"><Button variant="secondary" onClick={exportData}><ArrowDown size={17} /> Export Data</Button><Button variant="secondary" onClick={() => fileInputRef.current?.click()}><ArrowUp size={17} /> Import Data</Button><Button variant="danger" onClick={data.actions.resetDemoData}><Trash2 size={17} /> Reset Demo Data</Button></div><input ref={fileInputRef} type="file" accept="application/json" className="hidden" onChange={(event) => importData(event.target.files?.[0])} /></Panel><Panel><h2 className="text-lg font-semibold">Future Household Architecture</h2><div className="mt-3 grid gap-2 text-sm"><MoneyRow label="Household ID" value={0} /><p className="text-slate-600">Household: {data.state.household.id}</p><p className="text-slate-600">Husband user: {data.state.household.husbandUserId}</p><p className="text-slate-600">Wife user: {data.state.household.wifeUserId}</p></div></Panel></div>;
 }
 
 function QuickEntryModal({ onClose }: { onClose: () => void }) {
