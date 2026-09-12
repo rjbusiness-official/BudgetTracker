@@ -252,7 +252,7 @@ function AppShell() {
               <p className="truncate font-semibold">{data.state.profile.husbandName} and {data.state.profile.wifeName}</p>
             </div>
           </div>
-          <nav className="mt-6 flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto pr-1" aria-label="Desktop navigation">
+          <nav className="sidebar-scrollbar mt-6 flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto pr-1" aria-label="Desktop navigation">
             {navItems.filter((item) => item.path !== "/settings").map((item) => <SidebarLink key={item.path} item={item} />)}
           </nav>
           <div className="mt-4 grid gap-3 rounded-2xl bg-white/12 p-3 text-sm">
