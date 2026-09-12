@@ -40,7 +40,38 @@ textarea {
 .recharts-surface {
   outline: none;
 }
+* {
+  scrollbar-color: rgba(108, 99, 246, 0.32) transparent;
+  scrollbar-width: thin;
+}
 
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(108, 99, 246, 0.28);
+  border-radius: 999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(108, 99, 246, 0.44);
+}
+
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+::-webkit-scrollbar-button {
+  display: none;
+  height: 0;
+  width: 0;
+}
 .sidebar-scrollbar {
   scrollbar-color: rgba(255, 255, 255, 0.32) transparent;
   scrollbar-width: thin;
