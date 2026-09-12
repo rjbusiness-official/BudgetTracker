@@ -21,7 +21,7 @@ import type {
 } from "@/src/types/budget";
 import { eachDay, getActiveCutoff, normalizeImportedState, uid } from "@/src/utils/finance";
 
-const storageKey = "cutoff-household-budget-v2-ruru-joselle";
+const storageKey = "budget-tracker-v3-ruru-joselle-clean";
 
 interface BudgetActions {
   setActiveCutoff: (cutoffId: string) => void;
