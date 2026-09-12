@@ -21,7 +21,7 @@ import type {
 } from "@/src/types/budget";
 import { eachDay, getActiveCutoff, normalizeImportedState, uid } from "@/src/utils/finance";
 
-const storageKey = "budget-tracker-v3-ruru-joselle-clean";
+const storageKey = "budget-tracker-v4-ruru-joselle-empty";
 
 interface BudgetActions {
   setActiveCutoff: (cutoffId: string) => void;
@@ -75,12 +75,72 @@ const BudgetContext = createContext<BudgetContextValue | null>(null);
 
 const hasId = <T extends { id?: string }>(value: T): value is T & { id: string } => Boolean(value.id);
 
+const legacyStorageKeys = [
+  "cutoff-household-budget-v2-ruru-joselle",
+  "budget-tracker-v3-ruru-joselle-clean"
+];
+
+const demoRecordIds = new Set([
+  "inc-ruru-salary",
+  "inc-joselle-salary",
+  "inc-side",
+  "inc-prev-ruru",
+  "inc-prev-joselle",
+  "cat-debt",
+  "cat-bills",
+  "cat-food",
+  "prev-debt",
+  "prev-bills",
+  "prev-food",
+  "exp-1",
+  "exp-2",
+  "exp-prev-1",
+  "bill-electricity",
+  "bill-internet",
+  "debt-card",
+  "debt-phone",
+  "save-emergency",
+  "save-travel",
+  "wish-fridge",
+  "wish-vacation",
+  "family-parents",
+  "family-inlaws",
+  "rec-internet",
+  "rec-family",
+  "rec-savings"
+]);
+
+const demoArrayKeys = [
+  "incomes",
+  "budgetCategories",
+  "dailyBudgets",
+  "expenses",
+  "bills",
+  "debts",
+  "debtPayments",
+  "savingsGoals",
+  "savingsTransactions",
+  "wishlistItems",
+  "familyShares",
+  "recurringTransactions"
+] as const;
+
+const containsOldDemoData = (state: BudgetState) =>
+  state.household?.id === "household-ruru-joselle" ||
+  state.profile?.demoToday === "2026-09-20" ||
+  demoArrayKeys.some((key) => state[key].some((item) => demoRecordIds.has(item.id)));
+
+const cleanIncomingState = (state: BudgetState) => {
+  const normalized = normalizeImportedState(state);
+  return containsOldDemoData(normalized) ? createDemoBudgetState() : normalized;
+};
 const loadInitialState = () => {
   if (typeof window === "undefined") return createDemoBudgetState();
   try {
+    legacyStorageKeys.forEach((key) => window.localStorage.removeItem(key));
     const raw = window.localStorage.getItem(storageKey);
     if (!raw) return createDemoBudgetState();
-    return normalizeImportedState(JSON.parse(raw) as BudgetState);
+    return cleanIncomingState(JSON.parse(raw) as BudgetState);
   } catch {
     return createDemoBudgetState();
   }
@@ -123,7 +183,7 @@ export function BudgetProvider({ children }: { children: React.ReactNode }) {
         }
 
         const remote = data?.[0] as { budget_state?: BudgetState; updated_at?: string } | undefined;
-        if (remote?.budget_state) setState(normalizeImportedState(remote.budget_state));
+        if (remote?.budget_state) setState(cleanIncomingState(remote.budget_state));
         setSync((current) => ({ ...current, isLoading: false, error: "", lastSavedAt: remote?.updated_at || current.lastSavedAt }));
         setRemoteReady(true);
       });
@@ -173,7 +233,7 @@ export function BudgetProvider({ children }: { children: React.ReactNode }) {
 
   const resetDemoData = useCallback(() => setState(createDemoBudgetState()), []);
 
-  const importData = useCallback((nextState: BudgetState) => setState(normalizeImportedState(nextState)), []);
+  const importData = useCallback((nextState: BudgetState) => setState(cleanIncomingState(nextState)), []);
 
   const addIncome = useCallback((income: Omit<Income, "id">) => {
     setState((current) => ({ ...current, incomes: [{ ...income, id: uid("income") }, ...current.incomes] }));
