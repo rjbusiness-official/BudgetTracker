@@ -215,7 +215,20 @@ export const buildTransactions = (state: BudgetState): Transaction[] => {
       cutoffId: transaction.cutoffId
     };
   });
-  return [...incomeTx, ...expenseTx, ...debtTx, ...savingsTx].sort((a, b) => b.date.localeCompare(a.date));
+  const salarySavingsTx: Transaction[] = (state.salarySavingsRecords || []).map((record) => {
+    const income = state.incomes.find((item) => item.id === record.incomeId);
+    return {
+      id: "tx-" + record.id,
+      date: record.date,
+      description: record.note,
+      type: "Savings Contribution",
+      category: "Savings",
+      person: income?.person || "Shared",
+      amount: record.amount,
+      cutoffId: income?.cutoffId || state.activeCutoffId
+    };
+  });
+  return [...incomeTx, ...expenseTx, ...debtTx, ...savingsTx, ...salarySavingsTx].sort((a, b) => b.date.localeCompare(a.date));
 };
 
 export const amountIsValid = (value: number) => Number.isFinite(value) && value > 0 && Math.round(value * 100) === value * 100;
@@ -252,5 +265,7 @@ export const calculateMonthlySummary = (state: BudgetState, monthPrefix: string)
 export const normalizeImportedState = (state: BudgetState): BudgetState => ({
   ...state,
   activeCutoffId: state.activeCutoffId || state.cutoffs[0]?.id || "",
-  profile: { ...state.profile, currency: "PHP", theme: "light" }
+  profile: { ...state.profile, currency: "PHP", theme: "light" },
+  salaryAllocations: state.salaryAllocations || [],
+  salarySavingsRecords: state.salarySavingsRecords || []
 });

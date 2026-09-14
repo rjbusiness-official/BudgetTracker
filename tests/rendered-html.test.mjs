@@ -1,15 +1,10 @@
 import assert from "node:assert/strict";
-import { access, readFile, readdir } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
 import test from "node:test";
-
-const developmentPreviewMeta =
-  /<meta(?=[^>]*\bname=["']codex-preview["'])(?=[^>]*\bcontent=["']development["'])[^>]*>/i;
-const templateRoot = new URL("../", import.meta.url);
-const previewRoot = new URL("../app/_sites-preview/", import.meta.url);
 
 async function render() {
   const workerUrl = new URL("../dist/server/index.js", import.meta.url);
-  workerUrl.searchParams.set("test", `${process.pid}-${Date.now()}`);
+  workerUrl.searchParams.set("test", String(Date.now()));
   const { default: worker } = await import(workerUrl.href);
 
   return worker.fetch(
@@ -28,60 +23,58 @@ async function render() {
   );
 }
 
-test("server-renders the starter loading skeleton", async () => {
+test("server-renders the budget tracker loading shell", async () => {
   const response = await render();
   assert.equal(response.status, 200);
-  assert.match(response.headers.get("content-type") ?? "", /^text\/html\b/i);
+  assert.match(response.headers.get("content-type") ?? "", new RegExp("^text/html\\b", "i"));
 
   const html = await response.text();
-  assert.match(html, developmentPreviewMeta);
-  assert.match(html, /<title>Your site is taking shape<\/title>/i);
-  assert.match(html, /Codex is working/);
-  assert.match(html, /Your site is taking shape/);
-  assert.match(html, /Codex is building the first version/);
-  assert.match(html, /react-loading-skeleton/);
-  assert.match(html, /role="status"/);
+  assert.ok(html.includes("<title>Budget Tracker</title>"));
+  assert.ok(html.includes("Loading your household budget workspace."));
+  assert.equal(html.includes("codex-preview"), false);
+  assert.equal(html.includes("Your site is taking shape"), false);
+  assert.equal(html.includes("Codex is working"), false);
 });
 
-test("keeps the loading skeleton scoped and disposable", async () => {
-  const [preview, css, page, layout, packageJson, files] = await Promise.all([
-    readFile(new URL("SkeletonPreview.tsx", previewRoot), "utf8"),
-    readFile(new URL("preview.css", previewRoot), "utf8"),
-    readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
-    readFile(new URL("../app/layout.tsx", import.meta.url), "utf8"),
-    readFile(new URL("../package.json", import.meta.url), "utf8"),
-    readdir(previewRoot),
+test("defines the simplified money in and money out flow", async () => {
+  const [budgetApp, budgetTypes] = await Promise.all([
+    readFile(new URL("../src/components/BudgetApp.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../src/types/budget.ts", import.meta.url), "utf8"),
   ]);
 
-  assert.deepEqual(files.sort(), ["SkeletonPreview.tsx", "preview.css"]);
-  assert.match(preview, /from "react-loading-skeleton"/);
-  assert.match(preview, /baseColor="#eceae7"/);
-  assert.match(preview, /highlightColor="#f9f8f6"/);
-  assert.match(preview, /duration=\{2\.8\}/);
-  assert.match(preview, /sites-skeleton-search-placeholder/);
-  assert.match(packageJson, /"react-loading-skeleton": "3\.5\.0"/);
-
-  const shellIndex = preview.indexOf('className="sites-skeleton-shell"');
-  const statusIndex = preview.indexOf('className="sites-skeleton-status"');
-  assert.ok(shellIndex >= 0 && statusIndex > shellIndex);
-  assert.match(css, /position:\s*fixed/);
-  assert.match(css, /inset:\s*0/);
-  assert.match(css, /opacity:\s*0\.52/);
-  assert.match(css, /prefers-reduced-motion:\s*reduce/);
-  assert.doesNotMatch(css, /#020617|canvas|pets|progress/i);
-  assert.doesNotMatch(
-    preview,
-    /loading-spinner|status-mark|status-progress|canvas|cookie|random/i,
-  );
-
-  assert.match(page, /export const metadata:\s*Metadata/);
-  assert.match(page, /"codex-preview": "development"/);
-  assert.match(page, /<SkeletonPreview \/>/);
-  assert.match(layout, /title:\s*"Starter Project"/);
-  assert.doesNotMatch(layout, /codex-preview|_sites-preview|themeColor|\bViewport\b/);
-  assert.doesNotMatch(css, /(^|\s)(html|body)\s*\{/m);
-
-  await assert.rejects(
-    access(new URL("public/_sites-preview", templateRoot)),
-  );
+  assert.ok(budgetApp.includes('<Route path="/" element={<ActionHomePage />} />'));
+  assert.ok(budgetApp.includes('label="Record Expense"'));
+  assert.ok(budgetApp.includes('label="Record Income"'));
+  assert.ok(budgetApp.includes('label="Dashboard"'));
+  assert.ok(budgetApp.includes('Money Tracker'));
+  assert.ok(budgetApp.includes('max-w-xl'));
+  assert.ok(budgetApp.includes('Allocate each salary, then spend from what remains until the next salary is recorded.'));
+  assert.ok(budgetApp.includes('function SalaryAllocationForm'));
+  assert.ok(budgetApp.includes('function SalaryAllocationRow'));
+  assert.ok(budgetApp.includes('Savings From Excess Money'));
+  assert.ok(budgetApp.includes('function BackToChoices'));
+  assert.ok(budgetApp.includes('<ArrowLeft size={17} />'));
+  assert.ok(budgetApp.includes('<span>Back</span>'));
+  assert.equal(budgetApp.includes('aria-label="Switch cutoff"'), false);
+  assert.equal(budgetApp.includes('Current cutoff'), false);
+  assert.ok(budgetApp.includes('FormQuestion label="Income For"'));
+  assert.ok(budgetApp.includes('FormQuestion label="Income Source"'));
+  assert.ok(budgetApp.includes('Available to Spend'));
+  assert.ok(budgetApp.includes('function currentSalaryCycle'));
+  assert.ok(budgetApp.includes('function SaveSuccessPopup'));
+  assert.ok(budgetApp.includes('function todayInputValue'));
+  assert.ok(budgetApp.includes('defaultValue={initial?.date || todayInputValue()}'));
+  assert.ok(budgetApp.includes('Successfully saved'));
+  assert.ok(budgetApp.includes('FormQuestion label="Whose Expense"'));
+  assert.ok(budgetApp.includes('FormQuestion label="Amount"'));
+  assert.ok(budgetApp.includes('FormQuestion label="Type of Expense"'));
+  assert.ok(budgetApp.includes('FormQuestion label="Date"'));
+  assert.ok(budgetApp.includes('FormQuestion label="Description"'));
+  assert.equal(budgetApp.includes('Field label="Payment Method"'), false);
+  assert.ok(budgetApp.includes('<option value="Shared Money">Shared fund</option>'));
+  assert.ok(budgetApp.includes('"Pag-IBIG Loan"'));
+  assert.ok(budgetApp.includes('"SSS Loan"'));
+  assert.ok(budgetTypes.includes('"Government Loan"'));
+  assert.ok(budgetTypes.includes('salaryAllocations: SalaryAllocation[];'));
+  assert.ok(budgetTypes.includes('salarySavingsRecords: SalarySavingsRecord[];'));
 });

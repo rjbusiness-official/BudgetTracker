@@ -15,6 +15,7 @@ import type {
   Expense,
   FamilyShare,
   Income,
+  SalarySavingsRecord,
   SavingsGoal,
   SavingsTransaction,
   WishlistItem
@@ -31,6 +32,7 @@ interface BudgetActions {
   addIncome: (income: Omit<Income, "id">) => void;
   updateIncome: (income: Income) => void;
   deleteIncome: (id: string) => void;
+  setSalaryAllocation: (incomeId: string, category: string, amount: number) => void;
   addExpense: (expense: Omit<Expense, "id">) => void;
   updateExpense: (expense: Expense) => void;
   deleteExpense: (id: string) => void;
@@ -112,6 +114,8 @@ const demoRecordIds = new Set([
 
 const demoArrayKeys = [
   "incomes",
+  "salaryAllocations",
+  "salarySavingsRecords",
   "budgetCategories",
   "dailyBudgets",
   "expenses",
@@ -130,9 +134,49 @@ const containsOldDemoData = (state: BudgetState) =>
   state.profile?.demoToday === "2026-09-20" ||
   demoArrayKeys.some((key) => state[key].some((item) => demoRecordIds.has(item.id)));
 
+const isSalaryIncome = (income: Income) => income.type === "Salary" || income.source === "Salary";
+
+const salaryIncomeRecords = (state: BudgetState) =>
+  state.incomes.filter(isSalaryIncome).sort((a, b) => a.date.localeCompare(b.date) || a.id.localeCompare(b.id));
+
+const salaryAllocationsFor = (state: BudgetState, incomeId: string) =>
+  state.salaryAllocations.filter((allocation) => allocation.incomeId === incomeId);
+
+const expensesForSalaryPeriod = (state: BudgetState, income: Income, nextIncome: Income | undefined) =>
+  state.expenses.filter((expense) => expense.date >= income.date && (!nextIncome || expense.date < nextIncome.date));
+
+const recalculateSalarySavingsRecords = (state: BudgetState): BudgetState => {
+  const salaries = salaryIncomeRecords(state);
+  const salaryIds = new Set(salaries.map((income) => income.id));
+  const records: SalarySavingsRecord[] = [];
+
+  salaries.forEach((salary, index) => {
+    const nextSalary = salaries[index + 1];
+    if (!nextSalary) return;
+    const allocated = salaryAllocationsFor(state, salary.id).reduce((sum, allocation) => sum + allocation.amount, 0);
+    const spent = expensesForSalaryPeriod(state, salary, nextSalary).reduce((sum, expense) => sum + expense.amount, 0);
+    const excess = Math.round(Math.max(0, salary.amount - allocated - spent) * 100) / 100;
+    if (excess <= 0) return;
+    records.push({
+      id: "salary-saving-" + salary.id,
+      incomeId: salary.id,
+      nextIncomeId: nextSalary.id,
+      amount: excess,
+      date: nextSalary.date,
+      note: "Excess money from previous salary"
+    });
+  });
+
+  return {
+    ...state,
+    salaryAllocations: state.salaryAllocations.filter((allocation) => salaryIds.has(allocation.incomeId)),
+    salarySavingsRecords: records
+  };
+};
+
 const cleanIncomingState = (state: BudgetState) => {
   const normalized = normalizeImportedState(state);
-  return containsOldDemoData(normalized) ? createDemoBudgetState() : normalized;
+  return recalculateSalarySavingsRecords(containsOldDemoData(normalized) ? createDemoBudgetState() : normalized);
 };
 const loadInitialState = () => {
   if (typeof window === "undefined") return createDemoBudgetState();
@@ -236,27 +280,41 @@ export function BudgetProvider({ children }: { children: React.ReactNode }) {
   const importData = useCallback((nextState: BudgetState) => setState(cleanIncomingState(nextState)), []);
 
   const addIncome = useCallback((income: Omit<Income, "id">) => {
-    setState((current) => ({ ...current, incomes: [{ ...income, id: uid("income") }, ...current.incomes] }));
+    setState((current) => recalculateSalarySavingsRecords({ ...current, incomes: [{ ...income, id: uid("income") }, ...current.incomes] }));
   }, []);
 
   const updateIncome = useCallback((income: Income) => {
-    setState((current) => ({ ...current, incomes: current.incomes.map((item) => item.id === income.id ? income : item) }));
+    setState((current) => recalculateSalarySavingsRecords({ ...current, incomes: current.incomes.map((item) => item.id === income.id ? income : item) }));
   }, []);
 
   const deleteIncome = useCallback((id: string) => {
-    setState((current) => ({ ...current, incomes: current.incomes.filter((item) => item.id !== id) }));
+    setState((current) => recalculateSalarySavingsRecords({ ...current, incomes: current.incomes.filter((item) => item.id !== id), salaryAllocations: current.salaryAllocations.filter((allocation) => allocation.incomeId !== id) }));
+  }, []);
+
+  const setSalaryAllocation = useCallback((incomeId: string, category: string, amount: number) => {
+    setState((current) => {
+      const trimmedCategory = category.trim();
+      if (!trimmedCategory) return current;
+      const existing = current.salaryAllocations.find((allocation) => allocation.incomeId === incomeId && allocation.category === trimmedCategory);
+      const salaryAllocations = amount <= 0
+        ? current.salaryAllocations.filter((allocation) => !(allocation.incomeId === incomeId && allocation.category === trimmedCategory))
+        : existing
+          ? current.salaryAllocations.map((allocation) => allocation.id === existing.id ? { ...allocation, amount } : allocation)
+          : [{ id: uid("salaryalloc"), incomeId, category: trimmedCategory, amount }, ...current.salaryAllocations];
+      return recalculateSalarySavingsRecords({ ...current, salaryAllocations });
+    });
   }, []);
 
   const addExpense = useCallback((expense: Omit<Expense, "id">) => {
-    setState((current) => ({ ...current, expenses: [{ ...expense, id: uid("expense") }, ...current.expenses] }));
+    setState((current) => recalculateSalarySavingsRecords({ ...current, expenses: [{ ...expense, id: uid("expense") }, ...current.expenses] }));
   }, []);
 
   const updateExpense = useCallback((expense: Expense) => {
-    setState((current) => ({ ...current, expenses: current.expenses.map((item) => item.id === expense.id ? expense : item) }));
+    setState((current) => recalculateSalarySavingsRecords({ ...current, expenses: current.expenses.map((item) => item.id === expense.id ? expense : item) }));
   }, []);
 
   const deleteExpense = useCallback((id: string) => {
-    setState((current) => ({ ...current, expenses: current.expenses.filter((item) => item.id !== id) }));
+    setState((current) => recalculateSalarySavingsRecords({ ...current, expenses: current.expenses.filter((item) => item.id !== id) }));
   }, []);
 
   const updateCategory = useCallback((category: BudgetCategory) => {
@@ -454,6 +512,7 @@ export function BudgetProvider({ children }: { children: React.ReactNode }) {
     addIncome,
     updateIncome,
     deleteIncome,
+    setSalaryAllocation,
     addExpense,
     updateExpense,
     deleteExpense,
@@ -486,6 +545,7 @@ export function BudgetProvider({ children }: { children: React.ReactNode }) {
     addIncome,
     updateIncome,
     deleteIncome,
+    setSalaryAllocation,
     addExpense,
     updateExpense,
     deleteExpense,

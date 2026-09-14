@@ -52,8 +52,24 @@ export interface Income {
   amount: number;
   date: string;
   cutoffId: string;
-  type: "Salary" | "Overtime" | "Bonus" | "Freelance" | "Business" | "Commission" | "Other";
+  type: "Salary" | "Overtime" | "Bonus" | "Freelance" | "Business" | "Commission" | "Government Loan" | "Other";
   notes?: string;
+}
+
+export interface SalaryAllocation {
+  id: string;
+  incomeId: string;
+  category: string;
+  amount: number;
+}
+
+export interface SalarySavingsRecord {
+  id: string;
+  incomeId: string;
+  nextIncomeId: string;
+  amount: number;
+  date: string;
+  note: string;
 }
 
 export type BudgetGroup = "reserved" | "spendable" | "savings" | "personal" | "custom";
@@ -214,6 +230,8 @@ export interface BudgetState {
   cutoffs: Cutoff[];
   activeCutoffId: string;
   incomes: Income[];
+  salaryAllocations: SalaryAllocation[];
+  salarySavingsRecords: SalarySavingsRecord[];
   budgetCategories: BudgetCategory[];
   dailyBudgets: DailyBudget[];
   expenses: Expense[];

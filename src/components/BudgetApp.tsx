@@ -2,9 +2,10 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { FormEvent } from "react";
-import { HashRouter, Navigate, NavLink, Route, Routes } from "react-router-dom";
+import { HashRouter, NavLink, Route, Routes, useLocation } from "react-router-dom";
 import {
   AlertTriangle,
+  ArrowLeft,
   ArrowDown,
   ArrowUp,
   Calendar,
@@ -26,13 +27,11 @@ import {
   PiggyBank,
   Plus,
   Receipt,
-  Settings,
   ShoppingCart,
   Target,
   Trash2,
   TrendingDown,
   TrendingUp,
-  Users,
   Utensils,
   Wallet
 } from "lucide-react";
@@ -63,6 +62,7 @@ import type {
   FamilyShare,
   Income,
   PaymentMethod,
+  SalaryAllocation,
   SavingsGoal,
   WishlistItem
 } from "@/src/types/budget";
@@ -99,6 +99,7 @@ import {
   savingsProgress,
   spendableBudget,
   totalAllocation,
+  toDate,
   totalIncome,
   unallocatedMoney,
   upcomingBills,
@@ -108,31 +109,9 @@ import { Button, EmptyState, Field, Modal, MoneyDisplay, PageHeader, Panel, Prog
 
 type Tone = "neutral" | "success" | "warning" | "danger" | "accent";
 
-type NavItem = {
-  path: string;
-  label: string;
-  icon: LucideIcon;
-};
-
-const navItems: NavItem[] = [
-  { path: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { path: "/budget", label: "Cutoff Budget", icon: Wallet },
-  { path: "/daily", label: "Daily Plan", icon: CalendarDays },
-  { path: "/income", label: "Income", icon: PhilippinePeso },
-  { path: "/expenses", label: "Expenses", icon: Receipt },
-  { path: "/bills", label: "Bills", icon: CreditCard },
-  { path: "/debts", label: "Debts", icon: Landmark },
-  { path: "/savings", label: "Savings", icon: PiggyBank },
-  { path: "/wishlist", label: "Wishlist", icon: ShoppingCart },
-  { path: "/family", label: "Family Share", icon: Users },
-  { path: "/reports", label: "Reports", icon: ChartBar },
-  { path: "/transactions", label: "History", icon: List },
-  { path: "/settings", label: "Settings", icon: Settings }
-];
-
 const paymentMethods: PaymentMethod[] = ["Cash", "GCash", "Maya", "Bank Transfer", "Debit Card", "Credit Card", "Other"];
-const incomeTypes: Income["type"][] = ["Salary", "Overtime", "Bonus", "Freelance", "Business", "Commission", "Other"];
-const expenseFallbackCategories = ["Food", "Gas", "Parking", "Monthly Bills", "Debt Payments", "Family Share", "Shopping", "Planned Purchases", "Personal", "Transportation", "Medical", "Entertainment", "Others"];
+const incomeSourceOptions = ["Salary", "Pag-IBIG Loan", "SSS Loan", "Commission", "Freelance", "Other"];
+const expenseFallbackCategories = ["Food", "Gas", "Parking", "Bills", "Monthly Bills", "Debt Payments", "Family Share", "Shopping", "Planned Purchases", "Personal", "Transportation", "Medical", "Entertainment", "Others"];
 const chartColors = ["#6c63f6", "#2cc5a7", "#f5bd3d", "#ef5d7a", "#2f3654", "#a8a1ff", "#c7c2ff", "#7b70ff", "#d9d6ff", "#f0b6c7", "#9aa3b2"];
 
 function getString(form: FormData, key: string) {
@@ -141,6 +120,13 @@ function getString(form: FormData, key: string) {
 
 function getNumber(form: FormData, key: string) {
   return Number(form.get(key) || 0);
+}
+
+function todayInputValue() {
+  const today = new Date();
+  const month = String(today.getMonth() + 1).padStart(2, "0");
+  const day = String(today.getDate()).padStart(2, "0");
+  return today.getFullYear() + "-" + month + "-" + day;
 }
 
 function sum(values: number[]) {
@@ -200,6 +186,39 @@ function categoryNames(categories: BudgetCategory[]) {
   return Array.from(new Set([...categories.map((category) => category.name), ...expenseFallbackCategories]));
 }
 
+function incomeTypeForSource(source: string): Income["type"] {
+  if (source === "Pag-IBIG Loan" || source === "SSS Loan") return "Government Loan";
+  if (source === "Commission") return "Commission";
+  if (source === "Freelance") return "Freelance";
+  if (source === "Salary") return "Salary";
+  return "Other";
+}
+
+function isSalaryIncomeRecord(income: Income) {
+  return income.type === "Salary" || income.source === "Salary";
+}
+
+function dayCountBetween(startDate: string, endDate: string) {
+  const start = toDate(startDate).getTime();
+  const end = toDate(endDate).getTime();
+  return Math.max(1, Math.ceil((end - start) / 86400000));
+}
+
+function currentSalaryCycle(state: ReturnType<typeof useBudget>["state"]) {
+  const salaryRecords = state.incomes.filter(isSalaryIncomeRecord).sort((a, b) => b.date.localeCompare(a.date) || b.id.localeCompare(a.id));
+  const salary = salaryRecords[0];
+  if (!salary) return null;
+  const ascending = [...salaryRecords].reverse();
+  const salaryIndex = ascending.findIndex((income) => income.id === salary.id);
+  const nextSalary = salaryIndex >= 0 ? ascending[salaryIndex + 1] : undefined;
+  const allocations = state.salaryAllocations.filter((allocation) => allocation.incomeId === salary.id);
+  const allocated = allocations.reduce((total, allocation) => total + allocation.amount, 0);
+  const expenses = state.expenses.filter((expense) => expense.date >= salary.date && (!nextSalary || expense.date < nextSalary.date));
+  const spent = actualSpend(expenses);
+  const remaining = salary.amount - allocated - spent;
+  return { salary, nextSalary, allocations, allocated, spent, remaining };
+}
+
 export default function BudgetApp() {
   const [mounted, setMounted] = useState(false);
 
@@ -237,205 +256,226 @@ function AppLoading() {
 function AppShell() {
   const data = useActiveFinance();
   const { signOut } = useAuth();
-  const [quickOpen, setQuickOpen] = useState(false);
+  const location = useLocation();
+  const showBack = location.pathname !== "/";
   return (
-    <div className="min-h-screen bg-[#ded8ff] p-3 text-slate-900 md:p-6 lg:h-screen lg:overflow-hidden lg:p-10">
-      <div className="mx-auto grid min-h-[calc(100vh-1.5rem)] max-w-[1500px] overflow-hidden rounded-[2rem] bg-[#f6f4ff] p-3 shadow-[0_32px_90px_rgba(103,93,198,0.22)] md:min-h-[calc(100vh-3rem)] md:p-5 lg:h-[calc(100vh-5rem)] lg:min-h-0 lg:grid-cols-[248px_minmax(0,1fr)] lg:gap-5 lg:p-6">
-        <aside className="hidden h-full min-h-0 flex-col overflow-hidden rounded-[1.75rem] bg-[#6c63f6] p-4 text-white shadow-[0_22px_50px_rgba(103,93,198,0.30)] lg:flex">
-          <div className="flex items-center gap-3 rounded-2xl bg-white/12 p-3">
-            <span className="relative flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-white text-[#6c63f6] shadow-[0_12px_28px_rgba(47,54,84,0.16)]">
-              <Heart size={23} fill="currentColor" strokeWidth={1.5} />
-              <PhilippinePeso className="absolute -bottom-1 -right-1 rounded-full bg-[#2cc5a7] p-0.5 text-white shadow-sm" size={17} />
+    <div className="min-h-screen bg-[#f1f3f4] text-slate-900">
+      <div className="mx-auto flex min-h-screen w-full max-w-6xl flex-col px-4 py-5 md:px-6 md:py-6">
+        <header className="flex flex-col gap-3 rounded-lg border border-slate-200 bg-white px-4 py-3 shadow-sm sm:flex-row sm:items-center sm:justify-between">
+          <NavLink to="/" className="flex min-w-0 items-center gap-3">
+            <span className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[#673ab7] text-white shadow-sm">
+              <Heart size={22} fill="currentColor" strokeWidth={1.5} />
+              <PhilippinePeso className="absolute -bottom-1 -right-1 rounded-full bg-white p-0.5 text-[#673ab7] shadow-sm" size={16} />
             </span>
             <div className="min-w-0">
-              <p className="text-sm font-semibold text-white/70">Budget Tracker</p>
-              <p className="truncate font-semibold">{data.state.profile.husbandName} and {data.state.profile.wifeName}</p>
+              <p className="text-sm font-semibold text-[#673ab7]">Budget Tracker</p>
+              <p className="truncate text-sm font-medium text-slate-700">{data.state.profile.husbandName} and {data.state.profile.wifeName}</p>
             </div>
+          </NavLink>
+          <div className="flex items-center gap-2">
+            {showBack ? <BackToChoices /> : null}
+            <Button variant="secondary" onClick={() => void signOut()}><LogOut size={17} /> Sign out</Button>
           </div>
-          <nav className="sidebar-scrollbar mt-6 flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto pr-1" aria-label="Desktop navigation">
-            {navItems.filter((item) => item.path !== "/settings").map((item) => <SidebarLink key={item.path} item={item} />)}
-          </nav>
-          <div className="mt-4 grid gap-3 rounded-2xl bg-white/12 p-3 text-sm">
-            <div>
-              <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-white/60">Active cutoff</p>
-              <p className="mt-1 font-semibold text-white">{data.cutoff.label}</p>
-            </div>
-            <div>
-              <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-white/60">Cloud sync</p>
-              <p className="mt-1 font-semibold text-white">{data.sync.isLoading ? "Loading" : data.sync.isSaving ? "Saving" : data.sync.error ? "Needs setup" : "Saved"}</p>
-              {data.sync.error ? <p className="mt-1 text-xs leading-5 text-white/70">{data.sync.error}</p> : null}
-            </div>
-            <button className="mt-1 inline-flex min-h-10 items-center justify-center gap-2 rounded-xl bg-white/15 px-3 text-sm font-semibold text-white transition hover:bg-white/25" onClick={() => void signOut()} type="button">
-              <LogOut size={16} /> Sign out
-            </button>
-          </div>
-        </aside>
-        <div className="min-w-0 lg:flex lg:h-full lg:min-h-0 lg:flex-col">
-          <header className="sticky top-3 z-20 rounded-[1.75rem] border border-white/80 bg-white/95 px-4 py-3 shadow-[0_18px_45px_rgba(47,54,84,0.08)] backdrop-blur md:px-5 lg:static lg:shrink-0">
-            <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
-              <div className="flex min-w-0 items-center gap-3">
-                <span className="relative flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-[#6c63f6] to-[#8d85ff] text-white shadow-[0_12px_28px_rgba(103,93,198,0.28)] lg:hidden">
-                  <Heart size={23} fill="currentColor" strokeWidth={1.5} />
-                  <PhilippinePeso className="absolute -bottom-1 -right-1 rounded-full bg-white p-0.5 text-[#6c63f6] shadow-sm" size={17} />
-                </span>
-                <div className="min-w-0">
-                  <p className="text-sm font-semibold text-[#6c63f6]">Budget Tracker</p>
-                  <p className="truncate font-semibold lg:text-lg">{data.state.profile.husbandName} and {data.state.profile.wifeName}</p>
-                </div>
-              </div>
-              <div className="flex flex-col gap-2 sm:flex-row sm:items-center xl:justify-end">
-                <div className="rounded-lg bg-[#f7f8fb] px-3 py-2 text-sm shadow-inner shadow-slate-200/70">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#6c63f6]">Current cutoff</p>
-                  <p className="font-semibold text-slate-800">{data.cutoff.label}</p>
-                </div>
-                <select className={cn(inputClass, "w-full sm:w-60")} value={data.state.activeCutoffId} onChange={(event) => data.actions.setActiveCutoff(event.target.value)} aria-label="Switch cutoff">
-                  {data.state.cutoffs.map((cutoff) => <option key={cutoff.id} value={cutoff.id}>{cutoff.label}</option>)}
-                </select>
-                <Button onClick={() => setQuickOpen(true)}><Plus size={17} /> Add Transaction</Button>
-              </div>
-            </div>
-          </header>
-          <main className="px-1 py-6 pb-28 md:px-2 lg:min-h-0 lg:flex-1 lg:overflow-y-auto lg:pb-8 lg:pr-2">
-            <Routes>
-              <Route path="/" element={<Navigate to="/dashboard" replace />} />
-              <Route path="/dashboard" element={<DashboardPage />} />
-              <Route path="/budget" element={<CutoffBudgetPage />} />
-              <Route path="/daily" element={<DailyBudgetPage />} />
-              <Route path="/income" element={<IncomePage />} />
-              <Route path="/expenses" element={<ExpensesPage />} />
-              <Route path="/bills" element={<BillsPage />} />
-              <Route path="/debts" element={<DebtsPage />} />
-              <Route path="/savings" element={<SavingsPage />} />
-              <Route path="/wishlist" element={<WishlistPage />} />
-              <Route path="/family" element={<FamilySharePage />} />
-              <Route path="/reports" element={<ReportsPage />} />
-              <Route path="/transactions" element={<TransactionHistoryPage />} />
-              <Route path="/settings" element={<SettingsPage />} />
-            </Routes>
-          </main>
-        </div>
+        </header>
+        <main className="flex-1 py-6 md:py-10">
+          <Routes>
+            <Route path="/" element={<ActionHomePage />} />
+            <Route path="/dashboard" element={<DashboardPage />} />
+            <Route path="/budget" element={<CutoffBudgetPage />} />
+            <Route path="/daily" element={<DailyBudgetPage />} />
+            <Route path="/income" element={<IncomePage />} />
+            <Route path="/expenses" element={<ExpensesPage />} />
+            <Route path="/bills" element={<BillsPage />} />
+            <Route path="/debts" element={<DebtsPage />} />
+            <Route path="/savings" element={<SavingsPage />} />
+            <Route path="/wishlist" element={<WishlistPage />} />
+            <Route path="/family" element={<FamilySharePage />} />
+            <Route path="/reports" element={<ReportsPage />} />
+            <Route path="/transactions" element={<TransactionHistoryPage />} />
+            <Route path="/settings" element={<SettingsPage />} />
+          </Routes>
+        </main>
       </div>
-      <nav className="fixed inset-x-0 bottom-0 z-40 flex gap-1 overflow-x-auto border-t border-[#d8d3ff] bg-white px-2 py-2 shadow-[0_-14px_35px_rgba(103,93,198,0.14)] lg:hidden">
-        {navItems.map((item) => <BottomLink key={item.path} item={item} />)}
-      </nav>
-      <button className="fixed bottom-20 right-4 z-40 flex h-14 w-14 items-center justify-center rounded-full bg-[#6c63f6] text-white shadow-xl shadow-indigo-300/50 lg:hidden" onClick={() => setQuickOpen(true)} aria-label="Add transaction" type="button">
-        <Plus size={24} />
-      </button>
-      {quickOpen ? <QuickEntryModal onClose={() => setQuickOpen(false)} /> : null}
     </div>
   );
 }
 
-function SidebarLink({ item }: { item: NavItem }) {
-  const Icon = item.icon;
+function ActionHomePage() {
+  const data = useActiveFinance();
   return (
-    <NavLink to={item.path} className={({ isActive }) => cn("flex min-h-11 items-center gap-3 rounded-xl px-3 text-sm font-semibold transition", isActive ? "bg-white text-[#5b52e6] shadow-[0_12px_26px_rgba(47,54,84,0.14)]" : "text-white/75 hover:bg-white/12 hover:text-white")}>
-      <Icon size={18} /> <span>{item.label}</span>
+    <div className="mx-auto w-full max-w-xl">
+      <section className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
+        <div className="h-2 bg-[#673ab7]" />
+        <div className="border-b border-slate-200 px-6 py-5">
+          <h1 className="text-2xl font-normal text-slate-950">Money Tracker</h1>
+          <p className="mt-2 text-sm leading-6 text-slate-600">{data.state.profile.husbandName} and {data.state.profile.wifeName}</p>
+        </div>
+        <div className="grid gap-3 p-6 sm:grid-cols-2">
+          <HomeActionLink to="/expenses" label="Record Expense" icon={Receipt} tone="danger" />
+          <HomeActionLink to="/income" label="Record Income" icon={PhilippinePeso} tone="success" />
+          <HomeActionLink to="/dashboard" label="Dashboard" icon={LayoutDashboard} tone="accent" className="sm:col-span-2" />
+        </div>
+      </section>
+    </div>
+  );
+}
+
+function HomeActionLink({ to, label, icon: Icon, tone, className }: { to: string; label: string; icon: LucideIcon; tone: "success" | "danger" | "accent"; className?: string }) {
+  const toneClass = {
+    success: "border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100",
+    danger: "border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100",
+    accent: "border-[#d8d3ff] bg-[#f5f3ff] text-[#5b52e6] hover:bg-[#ece9ff]"
+  }[tone];
+  return (
+    <NavLink to={to} className={cn("flex min-h-14 items-center justify-center gap-2 rounded-md border px-4 py-3 text-sm font-semibold transition focus:outline-none focus:ring-2 focus:ring-[#673ab7]/30", toneClass, className)}>
+      <Icon size={18} />
+      <span>{label}</span>
     </NavLink>
   );
 }
 
-function BottomLink({ item }: { item: NavItem }) {
-  const Icon = item.icon;
+function BackToChoices() {
   return (
-    <NavLink to={item.path} className={({ isActive }) => cn("flex min-w-20 flex-col items-center justify-center gap-1 rounded-lg px-2 py-1.5 text-[11px] font-semibold", isActive ? "bg-[#6c63f6] text-white" : "text-slate-500")}>
-      <Icon size={18} /> <span>{item.label}</span>
+    <NavLink to="/" className="inline-flex min-h-10 w-fit items-center justify-center gap-2 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-600 shadow-sm transition hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-[#673ab7]/30">
+      <ArrowLeft size={17} />
+      <span>Back</span>
     </NavLink>
   );
 }
 
 function DashboardPage() {
   const data = useActiveFinance();
-  const today = data.state.profile.demoToday;
-  const todayPlan = data.dailyPlans.find((daily) => daily.date === today) || data.dailyPlans[0];
-  const todayActual = dailyActual(data.expenses, todayPlan?.date || today);
-  const todayDifference = dailyDifference(todayPlan?.planned || 0, todayActual);
-  const todayStatus = dailyStatus(todayPlan?.planned || 0, todayActual);
-  const bills = upcomingBills(data.bills, today);
-  const plannedSoFar = plannedUpToDate(data.dailyPlans, today);
-  const actualSoFar = actualUpToDate(data.expenses, today);
-  const paceDifference = plannedSoFar - actualSoFar;
-  const food = data.categories.find((category) => category.name === "Food");
-  const foodUsage = food ? usagePercentage(categoryActual(data.expenses, food.name), food.planned) : 0;
-  const alerts = [
-    food && foodUsage >= 80 ? "Food budget is already " + foodUsage.toFixed(0) + "% used." : "You have " + formatCurrency(data.safe) + " safe to spend until payday.",
-    todayDifference >= 0 ? "You spent " + formatCurrency(todayDifference) + " less than planned today." : "You are " + formatCurrency(Math.abs(todayDifference)) + " over today's planned budget.",
-    paceDifference >= 0 ? "You are " + formatCurrency(paceDifference) + " below your cutoff spending plan." : "You are " + formatCurrency(Math.abs(paceDifference)) + " above your cutoff spending plan.",
-    bills.dueThisWeek[0] ? bills.dueThisWeek[0].name + " bill of " + formatCurrency(bills.dueThisWeek[0].amount) + " is due soon." : "To stay within budget, keep average spending below " + formatCurrency(data.recommended) + " per day."
-  ];
+  const salaryRecords = useMemo(() => data.state.incomes.filter(isSalaryIncomeRecord).sort((a, b) => b.date.localeCompare(a.date) || b.id.localeCompare(a.id)), [data.state.incomes]);
+  const [selectedSalaryId, setSelectedSalaryId] = useState("");
+
+  useEffect(() => {
+    if (!salaryRecords.length) {
+      if (selectedSalaryId) setSelectedSalaryId("");
+      return;
+    }
+    if (!salaryRecords.some((income) => income.id === selectedSalaryId)) setSelectedSalaryId(salaryRecords[0].id);
+  }, [salaryRecords, selectedSalaryId]);
+
+  const salaryAscending = [...salaryRecords].reverse();
+  const selectedSalary = salaryRecords.find((income) => income.id === selectedSalaryId) || salaryRecords[0];
+  const selectedSalaryIndex = selectedSalary ? salaryAscending.findIndex((income) => income.id === selectedSalary.id) : -1;
+  const nextSalary = selectedSalaryIndex >= 0 ? salaryAscending[selectedSalaryIndex + 1] : undefined;
+  const allocations = selectedSalary ? data.state.salaryAllocations.filter((allocation) => allocation.incomeId === selectedSalary.id) : [];
+  const allocated = sum(allocations.map((allocation) => allocation.amount));
+  const salaryExpenses = selectedSalary ? data.state.expenses.filter((expense) => expense.date >= selectedSalary.date && (!nextSalary || expense.date < nextSalary.date)) : [];
+  const spentFromSalary = actualSpend(salaryExpenses);
+  const remainingFromSalary = selectedSalary ? selectedSalary.amount - allocated - spentFromSalary : 0;
+  const salaryDays = selectedSalary && nextSalary ? dayCountBetween(selectedSalary.date, nextSalary.date) : 0;
+  const availableDaily = salaryDays ? Math.max(0, remainingFromSalary) / salaryDays : Math.max(0, remainingFromSalary);
+  const moneyIn = totalIncome(data.state.incomes);
+  const moneyOut = actualSpend(data.state.expenses);
+  const balance = moneyIn - moneyOut;
+  const salarySavings = data.state.salarySavingsRecords;
+  const recentTransactions = buildTransactions(data.state)
+    .filter((transaction) => transaction.type === "Income" || transaction.type === "Expense" || transaction.type === "Savings Contribution")
+    .sort((a, b) => b.date.localeCompare(a.date))
+    .slice(0, 8);
+
   return (
-    <div className="grid gap-6">
-      <PageHeader title="Dashboard" description="Daily decision view for the active cutoff, with protected money kept separate from spendable cash." />
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <SummaryCard label="Safe to Spend" value={formatCurrency(data.safe)} helper="After today's spend and future daily plans" icon={CircleDollarSign} tone={data.safe >= 0 ? "success" : "danger"} />
-        <SummaryCard label="Today's Planned" value={formatCurrency(todayPlan?.planned || 0)} helper={formatLongDate(todayPlan?.date || today)} icon={Calendar} tone="accent" />
-        <SummaryCard label="Today's Actual" value={formatCurrency(todayActual)} helper={todayStatus.label} icon={Receipt} tone={todayStatus.tone} />
-        <SummaryCard label="Recommended Daily" value={formatCurrency(data.recommended)} helper={String(daysRemaining(data.cutoff, today)) + " days until payday"} icon={Target} tone="warning" />
+    <div className="mx-auto grid w-full max-w-4xl gap-4">
+      <section className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
+        <div className="h-2 bg-[#673ab7]" />
+        <div className="px-6 py-5">
+          <h1 className="text-2xl font-normal text-slate-950">Dashboard</h1>
+          <p className="mt-2 text-sm leading-6 text-slate-600">Allocate each salary, then spend from what remains until the next salary is recorded.</p>
+        </div>
+      </section>
+      <div className="grid gap-4 md:grid-cols-3">
+        <SummaryCard label="Money In" value={formatCurrency(moneyIn)} icon={TrendingUp} tone="success" />
+        <SummaryCard label="Money Out" value={formatCurrency(moneyOut)} icon={TrendingDown} tone="danger" />
+        <SummaryCard label="Balance" value={formatCurrency(balance)} icon={Wallet} tone={balance >= 0 ? "success" : "danger"} />
       </div>
-      <div className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
-        <Panel className="border-white bg-white text-slate-950 shadow-[0_22px_48px_rgba(47,54,84,0.10)]">
-          <div className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
+      {selectedSalary ? (
+        <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+          <div className="grid gap-3 md:grid-cols-[1fr_260px] md:items-end">
             <div>
-              <p className="text-sm font-semibold uppercase tracking-[0.2em] text-[#6c63f6]">Today</p>
-              <h2 className="mt-2 text-3xl font-semibold">{formatLongDate(todayPlan?.date || today)}</h2>
-              <p className="mt-2 text-slate-500">Next payday: {formatLongDate(data.cutoff.payday)}</p>
+              <h2 className="text-lg font-semibold text-slate-950">Salary Allocation</h2>
+              <p className="mt-1 text-sm text-slate-500">Salary recorded on {formatLongDate(selectedSalary.date)} for {formatCurrency(selectedSalary.amount)}.</p>
             </div>
-            <StatusBadge label={todayStatus.label} tone={todayStatus.tone} />
+            <Field label="Choose salary">
+              <select className={inputClass} value={selectedSalary.id} onChange={(event) => setSelectedSalaryId(event.target.value)}>
+                {salaryRecords.map((income) => <option key={income.id} value={income.id}>{formatShortDate(income.date)} - {income.person} - {formatCurrency(income.amount)}</option>)}
+              </select>
+            </Field>
           </div>
-          <div className="mt-6 grid gap-4 md:grid-cols-4">
-            <TodayMetric label="Planned Budget" value={todayPlan?.planned || 0} />
-            <TodayMetric label="Actual Spending" value={todayActual} />
-            <TodayMetric label="Difference" value={Math.abs(todayDifference)} helper={todayDifference >= 0 ? "under budget" : "over budget"} />
-            <TodayMetric label="Remaining Today" value={todayDifference} />
+          <div className="mt-4 grid gap-4 md:grid-cols-4">
+            <SummaryCard label="Salary Amount" value={formatCurrency(selectedSalary.amount)} icon={PhilippinePeso} tone="success" />
+            <SummaryCard label="Allocated" value={formatCurrency(allocated)} icon={Target} tone="accent" />
+            <SummaryCard label="Spent From Salary" value={formatCurrency(spentFromSalary)} icon={Receipt} tone="danger" />
+            <SummaryCard label={salaryDays ? "Available Daily" : "Available Until Next Salary"} value={formatCurrency(availableDaily)} helper={salaryDays ? String(salaryDays) + " days until next recorded salary" : "Next salary not recorded yet"} icon={Wallet} tone={remainingFromSalary >= 0 ? "success" : "danger"} />
           </div>
-          <div className="mt-5">
-            <ProgressBar value={usagePercentage(todayActual, todayPlan?.planned || 0)} tone={todayStatus.tone === "danger" ? "danger" : todayStatus.tone === "warning" ? "warning" : "success"} />
+          <SalaryAllocationForm salary={selectedSalary} />
+          <div className="mt-4 grid gap-2">
+            {allocations.length ? allocations.map((allocation) => <SalaryAllocationRow key={allocation.id} salary={selectedSalary} allocation={allocation} />) : <EmptyState title="No allocations yet" description="Add allocations like Gas, Parking, Bills, and the rest stays available to spend." />}
           </div>
-        </Panel>
-        <Panel>
-          <h2 className="text-lg font-semibold">Cutoff Money Map</h2>
-          <div className="mt-4 grid gap-3 text-sm">
-            <MoneyRow label="Combined Income" value={data.incomeTotal} />
-            <MoneyRow label="Reserved for Bills and Debt" value={reservedMoney(data.categories)} />
-            <MoneyRow label="Protected Savings" value={protectedSavings(data.categories)} />
-            <MoneyRow label="Spendable Money" value={data.spendable} />
-            <MoneyRow label="Total Actual Outflow" value={data.outflows} />
-            <MoneyRow label="Remaining Money" value={data.incomeTotal - data.outflows} strong />
-          </div>
-        </Panel>
-      </div>
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <SummaryCard label="Combined Income" value={formatCurrency(data.incomeTotal)} helper={data.state.profile.husbandName + ": " + formatCurrency(incomeByPerson(data.incomes, "Husband")) + " | " + data.state.profile.wifeName + ": " + formatCurrency(incomeByPerson(data.incomes, "Wife"))} icon={Wallet} />
-        <SummaryCard label="Total Allocated" value={formatCurrency(data.allocated)} helper={unallocatedMoney(data.incomeTotal, data.categories) >= 0 ? formatCurrency(unallocatedMoney(data.incomeTotal, data.categories)) + " still available" : "Exceeded by " + formatCurrency(Math.abs(unallocatedMoney(data.incomeTotal, data.categories)))} icon={Target} tone={unallocatedMoney(data.incomeTotal, data.categories) >= 0 ? "success" : "danger"} />
-        <SummaryCard label="Debt Payments" value={formatCurrency(data.debtPaid)} helper="Payments recorded this cutoff" icon={Landmark} />
-        <SummaryCard label="Savings" value={formatCurrency(data.savingsMoved)} helper="Moved to protected goals" icon={PiggyBank} tone="success" />
-      </div>
-      <div className="grid gap-6 xl:grid-cols-[1fr_0.8fr]">
-        <Panel>
-          <div className="flex items-center justify-between gap-3">
-            <h2 className="text-lg font-semibold">Cutoff Budget Summary</h2>
-            <StatusBadge label={data.spending <= data.spendable ? "Within Cutoff" : "Over Budget"} tone={data.spending <= data.spendable ? "success" : "danger"} />
-          </div>
-          <div className="mt-4 grid gap-3">
-            {data.categories.map((category) => {
-              const actual = categoryActual(data.expenses, category.name);
-              const health = budgetHealth(actual, category.planned);
-              return <BudgetCategoryRow key={category.id} category={category} actual={actual} health={health} />;
-            })}
-          </div>
-        </Panel>
-        <Panel>
-          <h2 className="text-lg font-semibold">Alerts</h2>
-          <div className="mt-4 grid gap-3">
-            {alerts.map((alert) => (
-              <div className="flex gap-3 rounded-lg border border-slate-200 p-3 text-sm" key={alert}>
-                <AlertTriangle className="mt-0.5 text-amber-500" size={18} />
-                <p className="text-slate-700">{alert}</p>
+        </section>
+      ) : (
+        <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+          <EmptyState title="Record salary income first" description="Use Record Income and choose Salary as the source to start salary allocation." />
+        </section>
+      )}
+      <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+        <h2 className="text-lg font-semibold text-slate-950">Savings From Excess Money</h2>
+        <div className="mt-4 grid gap-2">
+          {salarySavings.length ? salarySavings.map((record) => {
+            const income = data.state.incomes.find((item) => item.id === record.incomeId);
+            return <LedgerRow key={record.id} left="Excess money" meta={(income ? formatShortDate(income.date) + " salary" : "Previous salary") + " | " + record.note} amount={record.amount} />;
+          }) : <EmptyState title="No excess savings yet" description="When a new salary is recorded, leftover money from the previous salary is saved here automatically." />}
+        </div>
+      </section>
+      <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+        <h2 className="text-lg font-semibold text-slate-950">Recent In and Out</h2>
+        <div className="mt-4 grid gap-2">
+          {recentTransactions.length ? recentTransactions.map((transaction) => (
+            <div key={transaction.id} className="grid gap-2 rounded-lg border border-slate-200 p-3 md:grid-cols-[120px_1fr_120px] md:items-center">
+              <p className="text-sm text-slate-500">{formatShortDate(transaction.date)}</p>
+              <div>
+                <p className="font-semibold text-slate-900">{transaction.description}</p>
+                <p className="text-sm text-slate-500">{transaction.type} | {transaction.category}</p>
               </div>
-            ))}
-          </div>
-        </Panel>
-      </div>
+              <p className={cn("font-semibold md:text-right", transaction.type === "Income" || transaction.type === "Savings Contribution" ? "text-emerald-700" : "text-rose-700")}><MoneyDisplay value={transaction.amount} /></p>
+            </div>
+          )) : <EmptyState title="No records yet" description="Record income or expenses to see them here." />}
+        </div>
+      </section>
+    </div>
+  );
+}
+
+function SalaryAllocationForm({ salary }: { salary: Income }) {
+  const data = useActiveFinance();
+  const categories = categoryNames(data.state.budgetCategories);
+  const submit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const form = new FormData(event.currentTarget);
+    data.actions.setSalaryAllocation(salary.id, getString(form, "category"), getNumber(form, "amount"));
+    event.currentTarget.reset();
+  };
+  return (
+    <form className="mt-5 grid gap-3 rounded-lg border border-slate-200 bg-slate-50 p-4 md:grid-cols-[1fr_180px_auto] md:items-end" onSubmit={submit}>
+      <Field label="Allocation category">
+        <select className={inputClass} name="category" defaultValue="Gas">{categories.map((category) => <option key={category}>{category}</option>)}</select>
+      </Field>
+      <Field label="Amount">
+        <input className={inputClass} name="amount" type="number" min="0.01" step="0.01" required placeholder="0.00" />
+      </Field>
+      <Button type="submit"><Plus size={17} /> Allocate</Button>
+    </form>
+  );
+}
+
+function SalaryAllocationRow({ salary, allocation }: { salary: Income; allocation: SalaryAllocation }) {
+  const data = useActiveFinance();
+  return (
+    <div className="grid gap-3 rounded-lg border border-slate-200 p-3 md:grid-cols-[1fr_180px_auto] md:items-center">
+      <p className="font-semibold text-slate-900">{allocation.category}</p>
+      <input className={inputClass} type="number" min="0" step="0.01" value={allocation.amount} onChange={(event) => data.actions.setSalaryAllocation(salary.id, allocation.category, Number(event.target.value))} aria-label={allocation.category + " allocation amount"} />
+      <Button variant="ghost" onClick={() => data.actions.setSalaryAllocation(salary.id, allocation.category, 0)} title="Remove allocation"><Trash2 size={16} /></Button>
     </div>
   );
 }
@@ -489,10 +529,10 @@ function CutoffBudgetPage() {
     <div className="grid gap-6">
       <PageHeader title="Cutoff Budget" description="Record your actual take-home income for this cutoff first, then allocate it. This supports taxes, deductions, bonuses, and changing pay." actions={<Button variant="secondary" onClick={data.actions.copyPreviousBudget}><Clock size={17} /> Copy Previous Cutoff Budget</Button>} />
       <div className="grid gap-4 md:grid-cols-4">
-        <SummaryCard label="Ruru Income" value={formatCurrency(incomeByPerson(data.incomes, "Husband"))} helper="Recorded this cutoff" icon={PhilippinePeso} />
-        <SummaryCard label="Joselle Income" value={formatCurrency(incomeByPerson(data.incomes, "Wife"))} helper="Recorded this cutoff" icon={PhilippinePeso} />
-        <SummaryCard label="Additional Income" value={formatCurrency(incomeByPerson(data.incomes, "Shared"))} helper="Shared or other income" icon={Plus} />
-        <SummaryCard label="Combined Income" value={formatCurrency(data.incomeTotal)} helper="Total money received" icon={Wallet} tone="accent" />
+        <SummaryCard label="Ruru Income" value={formatCurrency(incomeByPerson(data.state.incomes, "Husband"))} helper="Recorded this cutoff" icon={PhilippinePeso} />
+        <SummaryCard label="Joselle Income" value={formatCurrency(incomeByPerson(data.state.incomes, "Wife"))} helper="Recorded this cutoff" icon={PhilippinePeso} />
+        <SummaryCard label="Additional Income" value={formatCurrency(incomeByPerson(data.state.incomes, "Shared"))} helper="Shared or other income" icon={Plus} />
+        <SummaryCard label="Combined Income" value={formatCurrency(totalIncome(data.state.incomes))} helper="Total money received" icon={Wallet} tone="accent" />
       </div>
       <Panel>
         <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
@@ -612,85 +652,92 @@ function LedgerRow({ left, meta, amount, action }: { left: string; meta: string;
 }
 
 function IncomePage() {
-  const data = useActiveFinance();
-  const [editing, setEditing] = useState<Income | null>(null);
   return (
-    <div className="grid gap-6">
-      <PageHeader title="Income" description="Record the actual net money received every cutoff. Use the amount after taxes, deductions, loans, or other payroll changes." />
-      <Panel className="border-[#d8d3ff] bg-[#f8f7ff]"><div className="flex gap-3 text-sm text-[#3f3a78]"><PhilippinePeso size={18} className="mt-0.5" /><p>Income is not fixed here. Add a new income record for each cutoff using your net take-home amount, for example Joselle's 20k cutoff salary minus taxes and deductions.</p></div></Panel>
-      <div className="grid gap-4 md:grid-cols-4">
-        <SummaryCard label="Husband Income" value={formatCurrency(incomeByPerson(data.incomes, "Husband"))} icon={Wallet} />
-        <SummaryCard label="Wife Income" value={formatCurrency(incomeByPerson(data.incomes, "Wife"))} icon={Wallet} />
-        <SummaryCard label="Additional Income" value={formatCurrency(incomeByPerson(data.incomes, "Shared"))} icon={Plus} />
-        <SummaryCard label="Combined Income" value={formatCurrency(data.incomeTotal)} icon={PhilippinePeso} tone="accent" />
-      </div>
-      <Panel><IncomeForm key={editing?.id || "new-income"} initial={editing} onDone={() => setEditing(null)} /></Panel>
-      <Panel>
-        <h2 className="text-lg font-semibold">Income Records</h2>
-        <div className="mt-4 grid gap-2">
-          {data.incomes.map((income) => <LedgerRow key={income.id} left={income.source} meta={formatShortDate(income.date) + " | " + income.person + " | " + income.type} amount={income.amount} action={<><Button variant="ghost" onClick={() => setEditing(income)} title="Edit income"><Pencil size={16} /></Button><Button variant="ghost" onClick={() => data.actions.deleteIncome(income.id)} title="Delete income"><Trash2 size={16} /></Button></>} />)}
+    <div className="mx-auto grid w-full max-w-2xl gap-4">
+      <section className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
+        <div className="h-2 bg-[#673ab7]" />
+        <div className="px-6 py-5">
+          <h1 className="text-2xl font-normal text-slate-950">Record Income</h1>
+          <p className="mt-2 text-sm leading-6 text-slate-600">Record money coming in.</p>
         </div>
-      </Panel>
+      </section>
+      <IncomeForm onDone={() => undefined} />
     </div>
   );
 }
 
 function IncomeForm({ initial, onDone }: { initial?: Income | null; onDone: () => void }) {
   const data = useActiveFinance();
+  const sources = initial?.source && !incomeSourceOptions.includes(initial.source) ? [initial.source, ...incomeSourceOptions] : incomeSourceOptions;
+  const [saveNotice, setSaveNotice] = useState("");
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
+    const source = getString(form, "source");
     const payload: Omit<Income, "id"> = {
-      source: getString(form, "source"),
+      source,
       person: getString(form, "person") as Income["person"],
       amount: getNumber(form, "amount"),
       date: getString(form, "date"),
       cutoffId: data.cutoff.id,
-      type: getString(form, "type") as Income["type"],
+      type: incomeTypeForSource(source),
       notes: getString(form, "notes")
     };
     if (initial) data.actions.updateIncome({ ...payload, id: initial.id }); else data.actions.addIncome(payload);
     event.currentTarget.reset();
+    setSaveNotice(initial ? "Income changes have been saved." : "Income has been recorded.");
     onDone();
   };
   return (
-    <form className="grid gap-3 md:grid-cols-3" onSubmit={submit}>
-      <Field label="Income Source"><input className={inputClass} name="source" required defaultValue={initial?.source || ""} placeholder="Joselle net salary after deductions" /></Field>
-      <Field label="Person"><select className={inputClass} name="person" defaultValue={initial?.person || "Husband"}><option>Husband</option><option>Wife</option><option>Shared</option></select></Field>
-      <Field label="Amount Received (Net)" hint="Enter the actual money received after taxes and deductions."><input className={inputClass} name="amount" required type="number" min="0.01" step="0.01" defaultValue={initial?.amount || ""} /></Field>
-      <Field label="Date"><input className={inputClass} name="date" required type="date" defaultValue={initial?.date || data.state.profile.demoToday} /></Field>
-      <Field label="Income Type"><select className={inputClass} name="type" defaultValue={initial?.type || "Salary"}>{incomeTypes.map((type) => <option key={type}>{type}</option>)}</select></Field>
-      <Field label="Notes"><input className={inputClass} name="notes" defaultValue={initial?.notes || ""} placeholder="Tax, SSS, Pag-IBIG, loans, other deductions" /></Field>
-      <div className="md:col-span-3 flex gap-2"><Button type="submit"><CheckCircle size={17} /> {initial ? "Save Income" : "Add Income"}</Button>{initial ? <Button variant="secondary" onClick={onDone}>Cancel</Button> : null}</div>
-    </form>
+    <>
+      <form className="grid gap-4" onSubmit={submit}>
+        <FormQuestion label="Income For">
+          <select className={cn(inputClass, "w-full")} name="person" defaultValue={initial?.person || "Husband"} required><option value="Husband">Ruru</option><option value="Wife">Joselle</option><option value="Shared">Shared fund</option></select>
+        </FormQuestion>
+        <FormQuestion label="Income Source">
+          <select className={cn(inputClass, "w-full")} name="source" defaultValue={initial?.source || "Salary"} required>{sources.map((source) => <option key={source}>{source}</option>)}</select>
+        </FormQuestion>
+        <FormQuestion label="Amount">
+          <input className={cn(inputClass, "w-full")} name="amount" required type="number" min="0.01" step="0.01" defaultValue={initial?.amount || ""} placeholder="0.00" />
+        </FormQuestion>
+        <FormQuestion label="Date">
+          <input className={cn(inputClass, "w-full")} name="date" required type="date" defaultValue={initial?.date || todayInputValue()} />
+        </FormQuestion>
+        <FormQuestion label="Description">
+          <input className={cn(inputClass, "w-full")} name="notes" defaultValue={initial?.notes || ""} placeholder="Optional" />
+        </FormQuestion>
+        <div className="flex items-center gap-3 rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+          <Button type="submit"><CheckCircle size={17} /> {initial ? "Save Income" : "Record Income"}</Button>
+          {initial ? <Button variant="secondary" onClick={onDone}>Cancel</Button> : null}
+        </div>
+      </form>
+      {saveNotice ? <SaveSuccessPopup message={saveNotice} onClose={() => setSaveNotice("")} /> : null}
+    </>
   );
 }
 
 function ExpensesPage() {
   const data = useActiveFinance();
-  const [editing, setEditing] = useState<Expense | null>(null);
-  const [search, setSearch] = useState("");
-  const [category, setCategory] = useState("All");
-  const filtered = data.expenses.filter((expense) => (category === "All" || expense.category === category) && (expense.name.toLowerCase().includes(search.toLowerCase()) || expense.category.toLowerCase().includes(search.toLowerCase())));
+  const salaryCycle = currentSalaryCycle(data.state);
   return (
-    <div className="grid gap-6">
-      <PageHeader title="Expenses" description="Record actual daily spending and update cutoff, category, and safe-to-spend totals immediately." />
-      <div className="grid gap-4 md:grid-cols-4">
-        <SummaryCard label="Actual Spending" value={formatCurrency(data.spending)} icon={Receipt} />
-        <SummaryCard label="Spendable Left" value={formatCurrency(data.spendable - data.spending)} icon={Wallet} tone={data.spendable - data.spending >= 0 ? "success" : "danger"} />
-        <SummaryCard label="Safe to Spend" value={formatCurrency(data.safe)} icon={CircleDollarSign} tone={data.safe >= 0 ? "success" : "danger"} />
-        <SummaryCard label="Recommended Daily" value={formatCurrency(data.recommended)} icon={Target} />
-      </div>
-      <Panel><ExpenseForm key={editing?.id || "new-expense"} initial={editing} onDone={() => setEditing(null)} /></Panel>
-      <Panel>
-        <div className="grid gap-3 md:grid-cols-[1fr_220px]">
-          <input className={inputClass} value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search expenses" />
-          <select className={inputClass} value={category} onChange={(event) => setCategory(event.target.value)}><option>All</option>{categoryNames(data.categories).map((name) => <option key={name}>{name}</option>)}</select>
+    <div className="mx-auto grid w-full max-w-2xl gap-4">
+      <section className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
+        <div className="h-2 bg-[#673ab7]" />
+        <div className="px-6 py-5">
+          <h1 className="text-2xl font-normal text-slate-950">Record Expense</h1>
+          <p className="mt-2 text-sm leading-6 text-slate-600">Record money going out.</p>
         </div>
-        <div className="mt-4 grid gap-2">
-          {filtered.map((expense) => <LedgerRow key={expense.id} left={expense.name} meta={formatShortDate(expense.date) + " | " + expense.category + " | " + expense.paidBy + " | " + expense.paymentMethod} amount={expense.amount} action={<><Button variant="ghost" onClick={() => setEditing(expense)} title="Edit expense"><Pencil size={16} /></Button><Button variant="ghost" onClick={() => data.actions.deleteExpense(expense.id)} title="Delete expense"><Trash2 size={16} /></Button></>} />)}
-        </div>
-      </Panel>
+      </section>
+      <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+        <p className="text-sm font-medium text-slate-500">Available to Spend</p>
+        <p className={cn("mt-2 text-3xl font-semibold tabular-nums", salaryCycle && salaryCycle.remaining < 0 ? "text-rose-700" : "text-emerald-700")}>
+          {formatCurrency(salaryCycle ? salaryCycle.remaining : 0)}
+        </p>
+        <p className="mt-2 text-sm leading-6 text-slate-600">
+          {salaryCycle ? "From " + formatShortDate(salaryCycle.salary.date) + " salary after allocations and recorded expenses." : "Record salary income first to calculate the available balance."}
+        </p>
+      </section>
+      <ExpenseForm onDone={() => undefined} />
     </div>
   );
 }
@@ -698,34 +745,82 @@ function ExpensesPage() {
 function ExpenseForm({ initial, onDone }: { initial?: Expense | null; onDone: () => void }) {
   const data = useActiveFinance();
   const names = categoryNames(data.categories);
+  const [saveNotice, setSaveNotice] = useState("");
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
+    const category = getString(form, "category");
     const payload: Omit<Expense, "id"> = {
       name: getString(form, "name"),
       amount: getNumber(form, "amount"),
-      category: getString(form, "category"),
+      category,
       paidBy: getString(form, "paidBy") as Expense["paidBy"],
       date: getString(form, "date"),
-      paymentMethod: getString(form, "paymentMethod") as PaymentMethod,
+      paymentMethod: "Cash",
       cutoffId: data.cutoff.id,
-      notes: getString(form, "notes")
+      notes: ""
     };
     if (initial) data.actions.updateExpense({ ...payload, id: initial.id, billId: initial.billId, wishlistItemId: initial.wishlistItemId }); else data.actions.addExpense(payload);
     event.currentTarget.reset();
+    setSaveNotice(initial ? "Expense changes have been saved." : "Expense has been recorded.");
     onDone();
   };
   return (
-    <form className="grid gap-3 md:grid-cols-3" onSubmit={submit}>
-      <Field label="Expense Name"><input className={inputClass} name="name" required defaultValue={initial?.name || ""} placeholder="Lunch" /></Field>
-      <Field label="Amount"><input className={inputClass} name="amount" required type="number" min="0.01" step="0.01" defaultValue={initial?.amount || ""} /></Field>
-      <Field label="Category"><select className={inputClass} name="category" defaultValue={initial?.category || "Food"}>{names.map((name) => <option key={name}>{name}</option>)}</select></Field>
-      <Field label="Paid By"><select className={inputClass} name="paidBy" defaultValue={initial?.paidBy || "Shared Money"}><option>Ruru</option><option>Joselle</option><option>Shared Money</option></select></Field>
-      <Field label="Payment Method"><select className={inputClass} name="paymentMethod" defaultValue={initial?.paymentMethod || "Cash"}>{paymentMethods.map((method) => <option key={method}>{method}</option>)}</select></Field>
-      <Field label="Date"><input className={inputClass} name="date" required type="date" defaultValue={initial?.date || data.state.profile.demoToday} /></Field>
-      <Field label="Notes"><input className={inputClass} name="notes" defaultValue={initial?.notes || ""} placeholder="Optional" /></Field>
-      <div className="md:col-span-2 flex items-end gap-2"><Button type="submit"><CheckCircle size={17} /> {initial ? "Save Expense" : "Add Expense"}</Button>{initial ? <Button variant="secondary" onClick={onDone}>Cancel</Button> : null}</div>
-    </form>
+    <>
+      <form className="grid gap-4" onSubmit={submit}>
+        <FormQuestion label="Whose Expense">
+          <select className={cn(inputClass, "w-full")} name="paidBy" defaultValue={initial?.paidBy || "Ruru"} required><option value="Ruru">Ruru</option><option value="Joselle">Joselle</option><option value="Shared Money">Shared fund</option></select>
+        </FormQuestion>
+        <FormQuestion label="Amount">
+          <input className={cn(inputClass, "w-full")} name="amount" required type="number" min="0.01" step="0.01" defaultValue={initial?.amount || ""} placeholder="0.00" />
+        </FormQuestion>
+        <FormQuestion label="Type of Expense">
+          <select className={cn(inputClass, "w-full")} name="category" defaultValue={initial?.category || "Parking"} required>{names.map((name) => <option key={name}>{name}</option>)}</select>
+        </FormQuestion>
+        <FormQuestion label="Date">
+          <input className={cn(inputClass, "w-full")} name="date" required type="date" defaultValue={initial?.date || todayInputValue()} />
+        </FormQuestion>
+        <FormQuestion label="Description">
+          <input className={cn(inputClass, "w-full")} name="name" required defaultValue={initial?.name || ""} placeholder="Parking, bills, groceries" />
+        </FormQuestion>
+        <div className="flex items-center gap-3 rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+          <Button type="submit"><CheckCircle size={17} /> {initial ? "Save Expense" : "Record Expense"}</Button>
+          {initial ? <Button variant="secondary" onClick={onDone}>Cancel</Button> : null}
+        </div>
+      </form>
+      {saveNotice ? <SaveSuccessPopup message={saveNotice} onClose={() => setSaveNotice("")} /> : null}
+    </>
+  );
+}
+
+function SaveSuccessPopup({ message, onClose }: { message: string; onClose: () => void }) {
+  useEffect(() => {
+    const timer = window.setTimeout(onClose, 2600);
+    return () => window.clearTimeout(timer);
+  }, [onClose]);
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/35 px-4 py-6" role="dialog" aria-modal="true" aria-labelledby="save-success-title" onClick={onClose}>
+      <div className="w-full max-w-sm rounded-lg border border-emerald-200 bg-white p-6 text-center shadow-xl" onClick={(event) => event.stopPropagation()}>
+        <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-emerald-100 text-emerald-700">
+          <CheckCircle size={28} />
+        </div>
+        <h2 id="save-success-title" className="mt-4 text-xl font-semibold text-slate-950">Successfully saved</h2>
+        <p className="mt-2 text-sm leading-6 text-slate-600">{message}</p>
+        <button type="button" className="mt-5 inline-flex min-h-10 items-center justify-center rounded-md bg-[#673ab7] px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-[#5b32a3] focus:outline-none focus:ring-2 focus:ring-[#673ab7]/30" onClick={onClose}>
+          OK
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function FormQuestion({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <label className="grid gap-3 rounded-lg border border-slate-200 bg-white p-5 text-sm font-medium text-slate-800 shadow-sm">
+      <span>{label}</span>
+      {children}
+    </label>
   );
 }
 
@@ -798,7 +893,7 @@ function DebtForm({ initial, onDone }: { initial?: Debt | null; onDone: () => vo
 function DebtPaymentForm({ debt }: { debt: Debt }) {
   const data = useActiveFinance();
   const submit = (event: FormEvent<HTMLFormElement>) => { event.preventDefault(); const form = new FormData(event.currentTarget); data.actions.recordDebtPayment({ debtId: debt.id, amount: getNumber(form, "amount"), date: getString(form, "date"), paymentSource: getString(form, "paymentSource"), cutoffId: data.cutoff.id, notes: getString(form, "notes") }); event.currentTarget.reset(); };
-  return <form className="mt-4 grid gap-2" onSubmit={submit}><div className="grid gap-2 sm:grid-cols-2"><input className={inputClass} name="amount" type="number" min="0.01" step="0.01" placeholder="Payment amount" required /><input className={inputClass} name="date" type="date" defaultValue={data.state.profile.demoToday} required /></div><input className={inputClass} name="paymentSource" placeholder="Payment source" defaultValue="Shared Money" /><input className={inputClass} name="notes" placeholder="Notes" /><Button type="submit" variant="secondary"><Plus size={16} /> Record Payment</Button></form>;
+  return <form className="mt-4 grid gap-2" onSubmit={submit}><div className="grid gap-2 sm:grid-cols-2"><input className={inputClass} name="amount" type="number" min="0.01" step="0.01" placeholder="Payment amount" required /><input className={inputClass} name="date" type="date" defaultValue={todayInputValue()} required /></div><input className={inputClass} name="paymentSource" placeholder="Payment source" defaultValue="Shared Money" /><input className={inputClass} name="notes" placeholder="Notes" /><Button type="submit" variant="secondary"><Plus size={16} /> Record Payment</Button></form>;
 }
 
 function SavingsPage() {
@@ -816,7 +911,7 @@ function SavingsGoalForm({ initial, onDone }: { initial?: SavingsGoal | null; on
 function SavingsTransactionForm({ goal }: { goal: SavingsGoal }) {
   const data = useActiveFinance();
   const submit = (event: FormEvent<HTMLFormElement>) => { event.preventDefault(); const form = new FormData(event.currentTarget); data.actions.addSavingsTransaction({ goalId: goal.id, amount: getNumber(form, "amount"), date: getString(form, "date"), type: getString(form, "type") as "Contribution" | "Withdrawal", cutoffId: data.cutoff.id, notes: getString(form, "notes") }); event.currentTarget.reset(); };
-  return <form className="mt-4 grid gap-2" onSubmit={submit}><div className="grid gap-2 sm:grid-cols-2"><select className={inputClass} name="type"><option>Contribution</option><option>Withdrawal</option></select><input className={inputClass} name="amount" type="number" min="0.01" step="0.01" placeholder="Amount" required /></div><input className={inputClass} name="date" type="date" defaultValue={data.state.profile.demoToday} /><input className={inputClass} name="notes" placeholder="Notes" /><Button type="submit" variant="secondary"><Plus size={16} /> Add Transaction</Button></form>;
+  return <form className="mt-4 grid gap-2" onSubmit={submit}><div className="grid gap-2 sm:grid-cols-2"><select className={inputClass} name="type"><option>Contribution</option><option>Withdrawal</option></select><input className={inputClass} name="amount" type="number" min="0.01" step="0.01" placeholder="Amount" required /></div><input className={inputClass} name="date" type="date" defaultValue={todayInputValue()} /><input className={inputClass} name="notes" placeholder="Notes" /><Button type="submit" variant="secondary"><Plus size={16} /> Add Transaction</Button></form>;
 }
 
 function WishlistPage() {
@@ -845,7 +940,7 @@ function FamilySharePage() {
 function FamilyForm({ initial, onDone }: { initial?: FamilyShare | null; onDone: () => void }) {
   const data = useActiveFinance();
   const submit = (event: FormEvent<HTMLFormElement>) => { event.preventDefault(); const form = new FormData(event.currentTarget); const payload = { recipient: getString(form, "recipient"), relationship: getString(form, "relationship"), budget: getNumber(form, "budget"), actualAmount: getNumber(form, "actualAmount"), date: getString(form, "date"), cutoffId: data.cutoff.id, notes: getString(form, "notes") }; data.actions.upsertFamilyShare(initial ? { ...payload, id: initial.id } : payload); event.currentTarget.reset(); onDone(); };
-  return <form className="grid gap-3 md:grid-cols-3" onSubmit={submit}><Field label="Recipient"><input className={inputClass} name="recipient" required defaultValue={initial?.recipient || ""} /></Field><Field label="Relationship"><select className={inputClass} name="relationship" defaultValue={initial?.relationship || "Parents"}><option>Parents</option><option>Parents-In-Law</option><option>Sibling</option><option>Household Contribution</option><option>Other</option></select></Field><Field label="Budget"><input className={inputClass} name="budget" type="number" min="0" step="0.01" required defaultValue={initial?.budget || ""} /></Field><Field label="Actual Amount Given"><input className={inputClass} name="actualAmount" type="number" min="0" step="0.01" defaultValue={initial?.actualAmount || 0} /></Field><Field label="Date"><input className={inputClass} name="date" type="date" required defaultValue={initial?.date || data.state.profile.demoToday} /></Field><Field label="Notes"><input className={inputClass} name="notes" defaultValue={initial?.notes || ""} /></Field><div className="md:col-span-3 flex gap-2"><Button type="submit"><CheckCircle size={17} /> {initial ? "Save Share" : "Add Share"}</Button>{initial ? <Button variant="secondary" onClick={onDone}>Cancel</Button> : null}</div></form>;
+  return <form className="grid gap-3 md:grid-cols-3" onSubmit={submit}><Field label="Recipient"><input className={inputClass} name="recipient" required defaultValue={initial?.recipient || ""} /></Field><Field label="Relationship"><select className={inputClass} name="relationship" defaultValue={initial?.relationship || "Parents"}><option>Parents</option><option>Parents-In-Law</option><option>Sibling</option><option>Household Contribution</option><option>Other</option></select></Field><Field label="Budget"><input className={inputClass} name="budget" type="number" min="0" step="0.01" required defaultValue={initial?.budget || ""} /></Field><Field label="Actual Amount Given"><input className={inputClass} name="actualAmount" type="number" min="0" step="0.01" defaultValue={initial?.actualAmount || 0} /></Field><Field label="Date"><input className={inputClass} name="date" type="date" required defaultValue={initial?.date || todayInputValue()} /></Field><Field label="Notes"><input className={inputClass} name="notes" defaultValue={initial?.notes || ""} /></Field><div className="md:col-span-3 flex gap-2"><Button type="submit"><CheckCircle size={17} /> {initial ? "Save Share" : "Add Share"}</Button>{initial ? <Button variant="secondary" onClick={onDone}>Cancel</Button> : null}</div></form>;
 }
 
 function ReportsPage() {
@@ -903,10 +998,4 @@ function SettingsPage() {
     data.actions.updateProfile({ husbandName: getString(form, "husbandName"), wifeName: getString(form, "wifeName"), cutoff1Start: getNumber(form, "cutoff1Start"), cutoff1End: getNumber(form, "cutoff1End"), cutoff2Start: getNumber(form, "cutoff2Start"), cutoff2End: "end", theme: "light", demoToday: getString(form, "demoToday") });
   };
   return <div className="grid gap-6"><PageHeader title="Settings" description="Manage couple names, cutoff dates, and your saved budget data. The app stays in light lavender mode." /><Panel><form className="grid gap-3 md:grid-cols-3" onSubmit={submit}><Field label="Husband Name"><input className={inputClass} name="husbandName" defaultValue={data.state.profile.husbandName} /></Field><Field label="Wife Name"><input className={inputClass} name="wifeName" defaultValue={data.state.profile.wifeName} /></Field><Field label="Currency"><input className={inputClass} value="PHP" readOnly /></Field><Field label="Cutoff 1 Start"><input className={inputClass} name="cutoff1Start" type="number" min="1" max="31" defaultValue={data.state.profile.cutoff1Start} /></Field><Field label="Cutoff 1 End"><input className={inputClass} name="cutoff1End" type="number" min="1" max="31" defaultValue={data.state.profile.cutoff1End} /></Field><Field label="Cutoff 2 Start"><input className={inputClass} name="cutoff2Start" type="number" min="1" max="31" defaultValue={data.state.profile.cutoff2Start} /></Field><div className="rounded-lg border border-[#d8d3ff] bg-[#f8f7ff] px-3 py-2 text-sm font-semibold text-[#5b52e6]">Light lavender mode</div><Field label="Demo Today"><input className={inputClass} name="demoToday" type="date" defaultValue={data.state.profile.demoToday} /></Field><div className="flex items-end"><Button type="submit"><CheckCircle size={17} /> Save Settings</Button></div></form></Panel><Panel><h2 className="text-lg font-semibold">Data Management</h2><p className="mt-1 text-sm text-slate-500">Budget data syncs to Supabase after login and keeps a local cache on this device.</p><div className="mt-4 flex flex-wrap gap-2"><Button variant="secondary" onClick={exportData}><ArrowDown size={17} /> Export Data</Button><Button variant="secondary" onClick={() => fileInputRef.current?.click()}><ArrowUp size={17} /> Import Data</Button><Button variant="danger" onClick={data.actions.resetDemoData}><Trash2 size={17} /> Reset All Data</Button></div><input ref={fileInputRef} type="file" accept="application/json" className="hidden" onChange={(event) => importData(event.target.files?.[0])} /></Panel><Panel><h2 className="text-lg font-semibold">Future Household Architecture</h2><div className="mt-3 grid gap-2 text-sm"><MoneyRow label="Household ID" value={0} /><p className="text-slate-600">Household: {data.state.household.id}</p><p className="text-slate-600">Husband user: {data.state.household.husbandUserId}</p><p className="text-slate-600">Wife user: {data.state.household.wifeUserId}</p></div></Panel></div>;
-}
-
-function QuickEntryModal({ onClose }: { onClose: () => void }) {
-  const data = useActiveFinance();
-  const [tab, setTab] = useState<"expense" | "income" | "debt" | "savings">("expense");
-  return <Modal title="Add Transaction" onClose={onClose}><div className="grid gap-4"><div className="grid grid-cols-4 gap-2">{[{ id: "expense", label: "Expense" }, { id: "income", label: "Income" }, { id: "debt", label: "Debt" }, { id: "savings", label: "Savings" }].map((item) => <Button key={item.id} variant={tab === item.id ? "primary" : "secondary"} onClick={() => setTab(item.id as typeof tab)}>{item.label}</Button>)}</div>{tab === "expense" ? <ExpenseForm onDone={onClose} /> : null}{tab === "income" ? <IncomeForm onDone={onClose} /> : null}{tab === "debt" ? <form className="grid gap-3" onSubmit={(event) => { event.preventDefault(); const form = new FormData(event.currentTarget); data.actions.recordDebtPayment({ debtId: getString(form, "debtId"), amount: getNumber(form, "amount"), date: getString(form, "date"), paymentSource: getString(form, "paymentSource"), cutoffId: data.cutoff.id, notes: getString(form, "notes") }); onClose(); }}><Field label="Debt"><select className={inputClass} name="debtId">{data.debts.map((debt) => <option key={debt.id} value={debt.id}>{debt.name}</option>)}</select></Field><Field label="Amount"><input className={inputClass} name="amount" type="number" min="0.01" step="0.01" required /></Field><Field label="Date"><input className={inputClass} name="date" type="date" defaultValue={data.state.profile.demoToday} /></Field><Field label="Payment Source"><input className={inputClass} name="paymentSource" defaultValue="Shared Money" /></Field><Field label="Notes"><input className={inputClass} name="notes" /></Field><Button type="submit">Record Debt Payment</Button></form> : null}{tab === "savings" ? <form className="grid gap-3" onSubmit={(event) => { event.preventDefault(); const form = new FormData(event.currentTarget); data.actions.addSavingsTransaction({ goalId: getString(form, "goalId"), amount: getNumber(form, "amount"), date: getString(form, "date"), type: "Contribution", cutoffId: data.cutoff.id, notes: getString(form, "notes") }); onClose(); }}><Field label="Savings Goal"><select className={inputClass} name="goalId">{data.state.savingsGoals.map((goal) => <option key={goal.id} value={goal.id}>{goal.name}</option>)}</select></Field><Field label="Amount"><input className={inputClass} name="amount" type="number" min="0.01" step="0.01" required /></Field><Field label="Date"><input className={inputClass} name="date" type="date" defaultValue={data.state.profile.demoToday} /></Field><Field label="Notes"><input className={inputClass} name="notes" /></Field><Button type="submit">Add Savings Contribution</Button></form> : null}</div></Modal>;
 }
