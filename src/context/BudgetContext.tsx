@@ -20,7 +20,7 @@ import type {
   SavingsTransaction,
   WishlistItem
 } from "@/src/types/budget";
-import { eachDay, getActiveCutoff, normalizeImportedState, uid } from "@/src/utils/finance";
+import { eachDay, expensesForSalaryPeriod, getActiveCutoff, normalizeImportedState, uid } from "@/src/utils/finance";
 
 const storageKey = "budget-tracker-v4-ruru-joselle-empty";
 
@@ -142,16 +142,13 @@ const salaryIncomeRecords = (state: BudgetState) =>
 const salaryAllocationsFor = (state: BudgetState, incomeId: string) =>
   state.salaryAllocations.filter((allocation) => allocation.incomeId === incomeId);
 
-const expensesForSalaryPeriod = (state: BudgetState, income: Income, nextIncome: Income | undefined) =>
-  state.expenses.filter((expense) => expense.date >= income.date && (!nextIncome || expense.date < nextIncome.date));
-
 const recalculateSalarySavingsRecords = (state: BudgetState): BudgetState => {
   const salaries = salaryIncomeRecords(state);
   const salaryIds = new Set(salaries.map((income) => income.id));
   const records: SalarySavingsRecord[] = [];
 
   salaries.forEach((salary, index) => {
-    const nextSalary = salaries[index + 1];
+    const nextSalary = salaries.slice(index + 1).find((income) => income.person === salary.person);
     if (!nextSalary) return;
     const allocated = salaryAllocationsFor(state, salary.id).reduce((sum, allocation) => sum + allocation.amount, 0);
     const spent = expensesForSalaryPeriod(state, salary, nextSalary).reduce((sum, expense) => sum + expense.amount, 0);

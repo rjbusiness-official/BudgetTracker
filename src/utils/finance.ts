@@ -11,6 +11,13 @@ import type {
   Transaction
 } from "@/src/types/budget";
 
+export const incomePersonForExpense = (paidBy: Expense["paidBy"]): Income["person"] =>
+  ({ Ruru: "Husband", Joselle: "Wife", "Shared Money": "Shared" } as const)[paidBy];
+
+export const expensesForSalaryPeriod = (state: BudgetState, income: Income, nextIncome: Income | undefined) =>
+  state.expenses.filter((expense) => incomePersonForExpense(expense.paidBy) === income.person &&
+    expense.date >= income.date && (!nextIncome || expense.date < nextIncome.date));
+
 export const formatCurrency = (value: number) =>
   new Intl.NumberFormat("en-PH", {
     style: "currency",

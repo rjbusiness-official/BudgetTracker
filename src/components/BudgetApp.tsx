@@ -84,11 +84,13 @@ import {
   daysRemaining,
   debtProgress,
   expensesForCutoff,
+  expensesForSalaryPeriod,
   formatCurrency,
   formatLongDate,
   formatShortDate,
   getActiveCutoff,
   incomeByPerson,
+  incomePersonForExpense,
   incomesForCutoff,
   plannedByGroup,
   plannedUpToDate,
@@ -204,8 +206,8 @@ function dayCountBetween(startDate: string, endDate: string) {
   return Math.max(1, Math.ceil((end - start) / 86400000));
 }
 
-function currentSalaryCycle(state: ReturnType<typeof useBudget>["state"]) {
-  const salaryRecords = state.incomes.filter(isSalaryIncomeRecord).sort((a, b) => b.date.localeCompare(a.date) || b.id.localeCompare(a.id));
+function currentSalaryCycle(state: ReturnType<typeof useBudget>["state"], paidBy: Expense["paidBy"]) {
+  const salaryRecords = state.incomes.filter((income) => isSalaryIncomeRecord(income) && income.person === incomePersonForExpense(paidBy)).sort((a, b) => b.date.localeCompare(a.date) || b.id.localeCompare(a.id));
   const salary = salaryRecords[0];
   if (!salary) return null;
   const ascending = [...salaryRecords].reverse();
@@ -213,7 +215,7 @@ function currentSalaryCycle(state: ReturnType<typeof useBudget>["state"]) {
   const nextSalary = salaryIndex >= 0 ? ascending[salaryIndex + 1] : undefined;
   const allocations = state.salaryAllocations.filter((allocation) => allocation.incomeId === salary.id);
   const allocated = allocations.reduce((total, allocation) => total + allocation.amount, 0);
-  const expenses = state.expenses.filter((expense) => expense.date >= salary.date && (!nextSalary || expense.date < nextSalary.date));
+  const expenses = expensesForSalaryPeriod(state, salary, nextSalary);
   const spent = actualSpend(expenses);
   const remaining = salary.amount - allocated - spent;
   return { salary, nextSalary, allocations, allocated, spent, remaining };
@@ -359,10 +361,10 @@ function DashboardPage() {
   const salaryAscending = [...salaryRecords].reverse();
   const selectedSalary = salaryRecords.find((income) => income.id === selectedSalaryId) || salaryRecords[0];
   const selectedSalaryIndex = selectedSalary ? salaryAscending.findIndex((income) => income.id === selectedSalary.id) : -1;
-  const nextSalary = selectedSalaryIndex >= 0 ? salaryAscending[selectedSalaryIndex + 1] : undefined;
+  const nextSalary = selectedSalaryIndex >= 0 ? salaryAscending.slice(selectedSalaryIndex + 1).find((income) => income.person === selectedSalary?.person) : undefined;
   const allocations = selectedSalary ? data.state.salaryAllocations.filter((allocation) => allocation.incomeId === selectedSalary.id) : [];
   const allocated = sum(allocations.map((allocation) => allocation.amount));
-  const salaryExpenses = selectedSalary ? data.state.expenses.filter((expense) => expense.date >= selectedSalary.date && (!nextSalary || expense.date < nextSalary.date)) : [];
+  const salaryExpenses = selectedSalary ? expensesForSalaryPeriod(data.state, selectedSalary, nextSalary) : [];
   const spentFromSalary = actualSpend(salaryExpenses);
   const remainingFromSalary = selectedSalary ? selectedSalary.amount - allocated - spentFromSalary : 0;
   const salaryDays = selectedSalary && nextSalary ? dayCountBetween(selectedSalary.date, nextSalary.date) : 0;
@@ -718,7 +720,8 @@ function IncomeForm({ initial, onDone }: { initial?: Income | null; onDone: () =
 
 function ExpensesPage() {
   const data = useActiveFinance();
-  const salaryCycle = currentSalaryCycle(data.state);
+  const [paidBy, setPaidBy] = useState<Expense["paidBy"]>("Ruru");
+  const salaryCycle = currentSalaryCycle(data.state, paidBy);
   return (
     <div className="mx-auto grid w-full max-w-2xl gap-4">
       <section className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
@@ -729,7 +732,7 @@ function ExpensesPage() {
         </div>
       </section>
       <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
-        <p className="text-sm font-medium text-slate-500">Available to Spend</p>
+        <p className="text-sm font-medium text-slate-500">Available to Spend - {paidBy === "Shared Money" ? "Shared fund" : paidBy}</p>
         <p className={cn("mt-2 text-3xl font-semibold tabular-nums", salaryCycle && salaryCycle.remaining < 0 ? "text-rose-700" : "text-emerald-700")}>
           {formatCurrency(salaryCycle ? salaryCycle.remaining : 0)}
         </p>
@@ -737,12 +740,12 @@ function ExpensesPage() {
           {salaryCycle ? "From " + formatShortDate(salaryCycle.salary.date) + " salary after allocations and recorded expenses." : "Record salary income first to calculate the available balance."}
         </p>
       </section>
-      <ExpenseForm onDone={() => undefined} />
+      <ExpenseForm paidBy={paidBy} onPaidByChange={setPaidBy} onDone={() => undefined} />
     </div>
   );
 }
 
-function ExpenseForm({ initial, onDone }: { initial?: Expense | null; onDone: () => void }) {
+function ExpenseForm({ initial, onDone, paidBy, onPaidByChange }: { initial?: Expense | null; onDone: () => void; paidBy?: Expense["paidBy"]; onPaidByChange?: (person: Expense["paidBy"]) => void }) {
   const data = useActiveFinance();
   const names = categoryNames(data.categories);
   const [saveNotice, setSaveNotice] = useState("");
@@ -769,7 +772,7 @@ function ExpenseForm({ initial, onDone }: { initial?: Expense | null; onDone: ()
     <>
       <form className="grid gap-4" onSubmit={submit}>
         <FormQuestion label="Whose Expense">
-          <select className={cn(inputClass, "w-full")} name="paidBy" defaultValue={initial?.paidBy || "Ruru"} required><option value="Ruru">Ruru</option><option value="Joselle">Joselle</option><option value="Shared Money">Shared fund</option></select>
+          <select className={cn(inputClass, "w-full")} name="paidBy" value={paidBy} defaultValue={paidBy === undefined ? initial?.paidBy || "Ruru" : undefined} onChange={(event) => onPaidByChange?.(event.target.value as Expense["paidBy"])} required><option value="Ruru">Ruru</option><option value="Joselle">Joselle</option><option value="Shared Money">Shared fund</option></select>
         </FormQuestion>
         <FormQuestion label="Amount">
           <input className={cn(inputClass, "w-full")} name="amount" required type="number" min="0.01" step="0.01" defaultValue={initial?.amount || ""} placeholder="0.00" />
