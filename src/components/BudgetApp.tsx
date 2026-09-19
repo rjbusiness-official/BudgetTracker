@@ -373,6 +373,7 @@ function DashboardPage() {
   const moneyOut = actualSpend(data.state.expenses);
   const balance = moneyIn - moneyOut;
   const salarySavings = data.state.salarySavingsRecords;
+  const savings = sum(salarySavings.map((record) => record.amount));
   const recentTransactions = buildTransactions(data.state)
     .filter((transaction) => transaction.type === "Income" || transaction.type === "Expense" || transaction.type === "Savings Contribution")
     .sort((a, b) => b.date.localeCompare(a.date))
@@ -387,10 +388,11 @@ function DashboardPage() {
           <p className="mt-2 text-sm leading-6 text-slate-600">Allocate each salary, then spend from what remains until the next salary is recorded.</p>
         </div>
       </section>
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="grid gap-4 md:grid-cols-4">
         <SummaryCard label="Money In" value={formatCurrency(moneyIn)} icon={TrendingUp} tone="success" />
         <SummaryCard label="Money Out" value={formatCurrency(moneyOut)} icon={TrendingDown} tone="danger" />
         <SummaryCard label="Balance" value={formatCurrency(balance)} icon={Wallet} tone={balance >= 0 ? "success" : "danger"} />
+        <SummaryCard label="Savings" value={formatCurrency(savings)} icon={PiggyBank} tone="accent" />
       </div>
       {selectedSalary ? (
         <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
