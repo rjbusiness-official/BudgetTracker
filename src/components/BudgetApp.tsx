@@ -675,13 +675,15 @@ function IncomeForm({ initial, onDone }: { initial?: Income | null; onDone: () =
   const data = useActiveFinance();
   const sources = initial?.source && !incomeSourceOptions.includes(initial.source) ? [initial.source, ...incomeSourceOptions] : incomeSourceOptions;
   const [saveNotice, setSaveNotice] = useState("");
+  const [selectedSource, setSelectedSource] = useState(initial?.source || "Salary");
+  const [selectedPerson, setSelectedPerson] = useState<Income["person"]>(initial?.person || "Husband");
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
     const source = getString(form, "source");
     const payload: Omit<Income, "id"> = {
       source,
-      person: getString(form, "person") as Income["person"],
+      person: source === "Other" ? "Shared" : selectedPerson,
       amount: getNumber(form, "amount"),
       date: getString(form, "date"),
       cutoffId: data.cutoff.id,
@@ -690,6 +692,8 @@ function IncomeForm({ initial, onDone }: { initial?: Income | null; onDone: () =
     };
     if (initial) data.actions.updateIncome({ ...payload, id: initial.id }); else data.actions.addIncome(payload);
     event.currentTarget.reset();
+    setSelectedSource(initial?.source || "Salary");
+    setSelectedPerson(initial?.person || "Husband");
     setSaveNotice(initial ? "Income changes have been saved." : "Income has been recorded.");
     onDone();
   };
@@ -697,10 +701,10 @@ function IncomeForm({ initial, onDone }: { initial?: Income | null; onDone: () =
     <>
       <form className="grid gap-4" onSubmit={submit}>
         <FormQuestion label="Income For">
-          <select className={cn(inputClass, "w-full")} name="person" defaultValue={initial?.person || "Husband"} required><option value="Husband">Ruru</option><option value="Wife">Joselle</option><option value="Shared">Shared fund</option></select>
+          <select className={cn(inputClass, "w-full")} name="person" value={selectedSource === "Other" ? "Shared" : selectedPerson} onChange={(event) => setSelectedPerson(event.target.value as Income["person"])} disabled={selectedSource === "Other"} required><option value="Husband">Ruru</option><option value="Wife">Joselle</option><option value="Shared">Shared Money</option></select>
         </FormQuestion>
         <FormQuestion label="Income Source">
-          <select className={cn(inputClass, "w-full")} name="source" defaultValue={initial?.source || "Salary"} required>{sources.map((source) => <option key={source}>{source}</option>)}</select>
+          <select className={cn(inputClass, "w-full")} name="source" value={selectedSource} onChange={(event) => setSelectedSource(event.target.value)} required>{sources.map((source) => <option key={source}>{source}</option>)}</select>
         </FormQuestion>
         <FormQuestion label="Amount">
           <input className={cn(inputClass, "w-full")} name="amount" required type="number" min="0.01" step="0.01" defaultValue={initial?.amount || ""} placeholder="0.00" />
