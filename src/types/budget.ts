@@ -161,7 +161,7 @@ export interface SavingsGoal {
 
 export interface SavingsTransaction {
   id: string;
-  goalId: string;
+  goalId?: string;
   amount: number;
   date: string;
   type: "Contribution" | "Withdrawal";

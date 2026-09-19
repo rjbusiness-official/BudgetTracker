@@ -63,7 +63,6 @@ import type {
   Income,
   PaymentMethod,
   SalaryAllocation,
-  SavingsGoal,
   WishlistItem
 } from "@/src/types/budget";
 import {
@@ -103,6 +102,7 @@ import {
   totalAllocation,
   toDate,
   totalIncome,
+  totalSavings,
   unallocatedMoney,
   upcomingBills,
   usagePercentage
@@ -374,7 +374,7 @@ function DashboardPage() {
   const moneyOut = actualSpend(data.state.expenses);
   const balance = moneyIn - moneyOut;
   const salarySavings = data.state.salarySavingsRecords;
-  const savings = sum(salarySavings.map((record) => record.amount));
+  const savings = totalSavings(data.state);
   const recentTransactions = buildTransactions(data.state)
     .filter((transaction) => transaction.type === "Income" || transaction.type === "Expense" || transaction.type === "Savings Contribution")
     .sort((a, b) => b.date.localeCompare(a.date))
@@ -904,20 +904,44 @@ function DebtPaymentForm({ debt }: { debt: Debt }) {
 
 function SavingsPage() {
   const data = useActiveFinance();
-  const [editing, setEditing] = useState<SavingsGoal | null>(null);
-  return <div className="grid gap-6"><PageHeader title="Savings" description="Protect savings goals from normal spendable cash and track every contribution or withdrawal." /><Panel><SavingsGoalForm key={editing?.id || "new-goal"} initial={editing} onDone={() => setEditing(null)} /></Panel><div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">{data.state.savingsGoals.map((goal) => <Panel key={goal.id}><div className="flex items-start justify-between"><div><h2 className="font-semibold">{goal.name}</h2><p className="text-sm text-slate-500">Target {formatLongDate(goal.targetDate)}</p></div><PiggyBank className="text-[#6c63f6]" size={22} /></div><div className="mt-4 grid gap-2 text-sm"><MoneyRow label="Target" value={goal.targetAmount} /><MoneyRow label="Saved" value={goal.currentSavings} /><MoneyRow label="This Cutoff" value={goal.contributionThisCutoff} /></div><div className="mt-3"><ProgressBar value={savingsProgress(goal.currentSavings, goal.targetAmount)} tone="success" /></div><p className="mt-2 text-sm text-slate-500">{savingsProgress(goal.currentSavings, goal.targetAmount).toFixed(0)}% complete</p><SavingsTransactionForm goal={goal} /><div className="mt-3 flex gap-2"><Button variant="ghost" onClick={() => setEditing(goal)} title="Edit goal"><Pencil size={16} /></Button><Button variant="ghost" onClick={() => data.actions.deleteSavingsGoal(goal.id)} title="Delete goal"><Trash2 size={16} /></Button></div></Panel>)}</div></div>;
-}
-
-function SavingsGoalForm({ initial, onDone }: { initial?: SavingsGoal | null; onDone: () => void }) {
-  const data = useActiveFinance();
-  const submit = (event: FormEvent<HTMLFormElement>) => { event.preventDefault(); const form = new FormData(event.currentTarget); const payload = { name: getString(form, "name"), targetAmount: getNumber(form, "targetAmount"), currentSavings: getNumber(form, "currentSavings"), contributionThisCutoff: getNumber(form, "contributionThisCutoff"), targetDate: getString(form, "targetDate"), notes: getString(form, "notes") }; data.actions.upsertSavingsGoal(initial ? { ...payload, id: initial.id } : payload); event.currentTarget.reset(); onDone(); };
-  return <form className="grid gap-3 md:grid-cols-3" onSubmit={submit}><Field label="Goal Name"><input className={inputClass} name="name" required defaultValue={initial?.name || ""} /></Field><Field label="Target Amount"><input className={inputClass} name="targetAmount" type="number" min="0.01" step="0.01" required defaultValue={initial?.targetAmount || ""} /></Field><Field label="Current Savings"><input className={inputClass} name="currentSavings" type="number" min="0" step="0.01" required defaultValue={initial?.currentSavings || 0} /></Field><Field label="Contribution This Cutoff"><input className={inputClass} name="contributionThisCutoff" type="number" min="0" step="0.01" defaultValue={initial?.contributionThisCutoff || 0} /></Field><Field label="Target Date"><input className={inputClass} name="targetDate" type="date" required defaultValue={initial?.targetDate || data.cutoff.payday} /></Field><Field label="Notes"><input className={inputClass} name="notes" defaultValue={initial?.notes || ""} /></Field><div className="md:col-span-3 flex gap-2"><Button type="submit"><CheckCircle size={17} /> {initial ? "Save Goal" : "Add Goal"}</Button>{initial ? <Button variant="secondary" onClick={onDone}>Cancel</Button> : null}</div></form>;
-}
-
-function SavingsTransactionForm({ goal }: { goal: SavingsGoal }) {
-  const data = useActiveFinance();
-  const submit = (event: FormEvent<HTMLFormElement>) => { event.preventDefault(); const form = new FormData(event.currentTarget); data.actions.addSavingsTransaction({ goalId: goal.id, amount: getNumber(form, "amount"), date: getString(form, "date"), type: getString(form, "type") as "Contribution" | "Withdrawal", cutoffId: data.cutoff.id, notes: getString(form, "notes") }); event.currentTarget.reset(); };
-  return <form className="mt-4 grid gap-2" onSubmit={submit}><div className="grid gap-2 sm:grid-cols-2"><select className={inputClass} name="type"><option>Contribution</option><option>Withdrawal</option></select><input className={inputClass} name="amount" type="number" min="0.01" step="0.01" placeholder="Amount" required /></div><input className={inputClass} name="date" type="date" defaultValue={todayInputValue()} /><input className={inputClass} name="notes" placeholder="Notes" /><Button type="submit" variant="secondary"><Plus size={16} /> Add Transaction</Button></form>;
+  const transactions = buildTransactions(data.state).filter((transaction) => transaction.type === "Savings Contribution" || transaction.type === "Savings Withdrawal");
+  const submit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const form = new FormData(event.currentTarget);
+    const amount = getNumber(form, "amount");
+    if (!Number.isFinite(amount) || amount <= 0) return;
+    data.actions.addSavingsTransaction({
+      amount,
+      date: getString(form, "date"),
+      type: "Contribution",
+      cutoffId: data.cutoff.id,
+      notes: getString(form, "notes")
+    });
+    event.currentTarget.reset();
+  };
+  return (
+    <div className="grid gap-6">
+      <PageHeader title="Savings" description="Record money saved and watch your total grow." />
+      <SummaryCard label="Total Savings" value={formatCurrency(totalSavings(data.state))} icon={PiggyBank} tone="success" />
+      <Panel>
+        <form className="grid gap-3 md:grid-cols-3" onSubmit={submit}>
+          <Field label="Amount"><input className={inputClass} name="amount" type="number" min="0.01" step="0.01" required /></Field>
+          <Field label="Date"><input className={inputClass} name="date" type="date" defaultValue={todayInputValue()} required /></Field>
+          <Field label="Notes (optional)"><input className={inputClass} name="notes" /></Field>
+          <div className="md:col-span-3"><Button type="submit"><Plus size={17} /> Record Savings</Button></div>
+        </form>
+      </Panel>
+      <Panel>
+        <h2 className="text-lg font-semibold">Savings History</h2>
+        <div className="mt-4 grid gap-2">
+          {transactions.length ? transactions.map((transaction) => {
+            const record = data.state.savingsTransactions.find((item) => "tx-" + item.id === transaction.id);
+            return <LedgerRow key={transaction.id} left={record?.notes || transaction.description} meta={formatShortDate(transaction.date) + " | " + transaction.type} amount={transaction.type === "Savings Withdrawal" ? -transaction.amount : transaction.amount} />;
+          }) : <EmptyState title="No savings recorded yet" description="Record an amount above to start adding to your savings." />}
+        </div>
+      </Panel>
+    </div>
+  );
 }
 
 function WishlistPage() {

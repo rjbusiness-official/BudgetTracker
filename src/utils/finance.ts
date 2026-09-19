@@ -175,6 +175,15 @@ export const billStatus = (bill: Bill, today: string) => {
   return bill.status;
 };
 
+export const totalSavings = (state: BudgetState) => {
+  const existingSavings = state.savingsGoals.reduce((total, goal) => total + goal.currentSavings, 0);
+  const recordedSavings = state.savingsTransactions
+    .filter((transaction) => !transaction.goalId)
+    .reduce((total, transaction) => total + (transaction.type === "Contribution" ? transaction.amount : -transaction.amount), 0);
+  const excessSavings = state.salarySavingsRecords.reduce((total, record) => total + record.amount, 0);
+  return existingSavings + recordedSavings + excessSavings;
+};
+
 export const buildTransactions = (state: BudgetState): Transaction[] => {
   const incomeTx: Transaction[] = state.incomes.map((income) => ({
     id: "tx-" + income.id,
