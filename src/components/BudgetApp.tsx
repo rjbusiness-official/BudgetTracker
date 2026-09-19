@@ -315,6 +315,7 @@ function ActionHomePage() {
         <div className="grid gap-3 p-6 sm:grid-cols-2">
           <HomeActionLink to="/expenses" label="Record Expense" icon={Receipt} tone="danger" />
           <HomeActionLink to="/income" label="Record Income" icon={PhilippinePeso} tone="success" />
+          <HomeActionLink to="/savings" label="Record Savings" icon={PiggyBank} tone="success" className="sm:col-span-2" />
           <HomeActionLink to="/dashboard" label="Dashboard" icon={LayoutDashboard} tone="accent" className="sm:col-span-2" />
         </div>
       </section>
