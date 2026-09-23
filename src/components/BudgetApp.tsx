@@ -66,6 +66,8 @@ import type {
   WishlistItem
 } from "@/src/types/budget";
 import {
+  walletBalance,
+  availableSavings,
   actualSpend,
   actualUpToDate,
   billStatus,
@@ -313,9 +315,11 @@ function ActionHomePage() {
           <p className="mt-2 text-sm leading-6 text-slate-600">{data.state.profile.husbandName} and {data.state.profile.wifeName}</p>
         </div>
         <div className="grid gap-3 p-6 sm:grid-cols-2">
-          <HomeActionLink to="/expenses" label="Record Expense" icon={Receipt} tone="danger" />
-          <HomeActionLink to="/income" label="Record Income" icon={PhilippinePeso} tone="success" />
+          <HomeActionLink to="/expenses" label="Money Out" icon={Receipt} tone="danger" />
+          <HomeActionLink to="/income" label="Money In" icon={PhilippinePeso} tone="success" />
           <HomeActionLink to="/savings" label="Record Savings" icon={PiggyBank} tone="success" className="sm:col-span-2" />
+          <HomeActionLink to="/savings?transfer=1" label="Transfer Savings to Wallet" icon={ArrowUp} tone="accent" className="sm:col-span-2" />
+          <HomeActionLink to="/bills" label="Monthly Bills" icon={CalendarDays} tone="accent" className="sm:col-span-2" />
           <HomeActionLink to="/dashboard" label="Dashboard" icon={LayoutDashboard} tone="accent" className="sm:col-span-2" />
         </div>
       </section>
@@ -347,109 +351,19 @@ function BackToChoices() {
 }
 
 function DashboardPage() {
-  const data = useActiveFinance();
-  const salaryRecords = useMemo(() => data.state.incomes.filter(isSalaryIncomeRecord).sort((a, b) => b.date.localeCompare(a.date) || b.id.localeCompare(a.id)), [data.state.incomes]);
-  const [selectedSalaryId, setSelectedSalaryId] = useState("");
-
-  useEffect(() => {
-    if (!salaryRecords.length) {
-      if (selectedSalaryId) setSelectedSalaryId("");
-      return;
-    }
-    if (!salaryRecords.some((income) => income.id === selectedSalaryId)) setSelectedSalaryId(salaryRecords[0].id);
-  }, [salaryRecords, selectedSalaryId]);
-
-  const salaryAscending = [...salaryRecords].reverse();
-  const selectedSalary = salaryRecords.find((income) => income.id === selectedSalaryId) || salaryRecords[0];
-  const selectedSalaryIndex = selectedSalary ? salaryAscending.findIndex((income) => income.id === selectedSalary.id) : -1;
-  const nextSalary = selectedSalaryIndex >= 0 ? salaryAscending.slice(selectedSalaryIndex + 1).find((income) => income.person === selectedSalary?.person) : undefined;
-  const allocations = selectedSalary ? data.state.salaryAllocations.filter((allocation) => allocation.incomeId === selectedSalary.id) : [];
-  const allocated = sum(allocations.map((allocation) => allocation.amount));
-  const salaryExpenses = selectedSalary ? expensesForSalaryPeriod(data.state, selectedSalary, nextSalary) : [];
-  const spentFromSalary = actualSpend(salaryExpenses);
-  const remainingFromSalary = selectedSalary ? selectedSalary.amount - allocated - spentFromSalary : 0;
-  const salaryDays = selectedSalary && nextSalary ? dayCountBetween(selectedSalary.date, nextSalary.date) : 0;
-  const availableDaily = salaryDays ? Math.max(0, remainingFromSalary) / salaryDays : Math.max(0, remainingFromSalary);
-  const moneyIn = totalIncome(data.state.incomes);
-  const moneyOut = actualSpend(data.state.expenses);
-  const balance = moneyIn - moneyOut;
-  const salarySavings = data.state.salarySavingsRecords;
-  const savings = totalSavings(data.state);
-  const recentTransactions = buildTransactions(data.state)
-    .filter((transaction) => transaction.type === "Income" || transaction.type === "Expense" || transaction.type === "Savings Contribution")
-    .sort((a, b) => b.date.localeCompare(a.date))
-    .slice(0, 8);
-
-  return (
-    <div className="mx-auto grid w-full max-w-4xl gap-4">
-      <section className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
-        <div className="h-2 bg-[#673ab7]" />
-        <div className="px-6 py-5">
-          <h1 className="text-2xl font-normal text-slate-950">Dashboard</h1>
-          <p className="mt-2 text-sm leading-6 text-slate-600">Allocate each salary, then spend from what remains until the next salary is recorded.</p>
-        </div>
-      </section>
-      <div className="grid gap-4 md:grid-cols-4">
-        <SummaryCard label="Money In" value={formatCurrency(moneyIn)} icon={TrendingUp} tone="success" />
-        <SummaryCard label="Money Out" value={formatCurrency(moneyOut)} icon={TrendingDown} tone="danger" />
-        <SummaryCard label="Balance" value={formatCurrency(balance)} icon={Wallet} tone={balance >= 0 ? "success" : "danger"} />
-        <SummaryCard label="Savings" value={formatCurrency(savings)} icon={PiggyBank} tone="accent" />
-      </div>
-      {selectedSalary ? (
-        <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
-          <div className="grid gap-3 md:grid-cols-[1fr_260px] md:items-end">
-            <div>
-              <h2 className="text-lg font-semibold text-slate-950">Salary Allocation</h2>
-              <p className="mt-1 text-sm text-slate-500">Salary recorded on {formatLongDate(selectedSalary.date)} for {formatCurrency(selectedSalary.amount)}.</p>
-            </div>
-            <Field label="Choose salary">
-              <select className={inputClass} value={selectedSalary.id} onChange={(event) => setSelectedSalaryId(event.target.value)}>
-                {salaryRecords.map((income) => <option key={income.id} value={income.id}>{formatShortDate(income.date)} - {income.person} - {formatCurrency(income.amount)}</option>)}
-              </select>
-            </Field>
-          </div>
-          <div className="mt-4 grid gap-4 md:grid-cols-4">
-            <SummaryCard label="Salary Amount" value={formatCurrency(selectedSalary.amount)} icon={PhilippinePeso} tone="success" />
-            <SummaryCard label="Allocated" value={formatCurrency(allocated)} icon={Target} tone="accent" />
-            <SummaryCard label="Spent From Salary" value={formatCurrency(spentFromSalary)} icon={Receipt} tone="danger" />
-            <SummaryCard label={salaryDays ? "Available Daily" : "Available Until Next Salary"} value={formatCurrency(availableDaily)} helper={salaryDays ? String(salaryDays) + " days until next recorded salary" : "Next salary not recorded yet"} icon={Wallet} tone={remainingFromSalary >= 0 ? "success" : "danger"} />
-          </div>
-          <SalaryAllocationForm salary={selectedSalary} />
-          <div className="mt-4 grid gap-2">
-            {allocations.length ? allocations.map((allocation) => <SalaryAllocationRow key={allocation.id} salary={selectedSalary} allocation={allocation} />) : <EmptyState title="No allocations yet" description="Add allocations like Gas, Parking, Bills, and the rest stays available to spend." />}
-          </div>
-        </section>
-      ) : (
-        <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
-          <EmptyState title="Record salary income first" description="Use Record Income and choose Salary as the source to start salary allocation." />
-        </section>
-      )}
-      <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
-        <h2 className="text-lg font-semibold text-slate-950">Savings From Excess Money</h2>
-        <div className="mt-4 grid gap-2">
-          {salarySavings.length ? salarySavings.map((record) => {
-            const income = data.state.incomes.find((item) => item.id === record.incomeId);
-            return <LedgerRow key={record.id} left="Excess money" meta={(income ? formatShortDate(income.date) + " salary" : "Previous salary") + " | " + record.note} amount={record.amount} />;
-          }) : <EmptyState title="No excess savings yet" description="When a new salary is recorded, leftover money from the previous salary is saved here automatically." />}
-        </div>
-      </section>
-      <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
-        <h2 className="text-lg font-semibold text-slate-950">Recent In and Out</h2>
-        <div className="mt-4 grid gap-2">
-          {recentTransactions.length ? recentTransactions.map((transaction) => (
-            <div key={transaction.id} className="grid gap-2 rounded-lg border border-slate-200 p-3 md:grid-cols-[120px_1fr_120px] md:items-center">
-              <p className="text-sm text-slate-500">{formatShortDate(transaction.date)}</p>
-              <div>
-                <p className="font-semibold text-slate-900">{transaction.description}</p>
-                <p className="text-sm text-slate-500">{transaction.type} | {transaction.category}</p>
-              </div>
-              <p className={cn("font-semibold md:text-right", transaction.type === "Income" || transaction.type === "Savings Contribution" ? "text-emerald-700" : "text-rose-700")}><MoneyDisplay value={transaction.amount} /></p>
-            </div>
-          )) : <EmptyState title="No records yet" description="Record income or expenses to see them here." />}
-        </div>
-      </section>
+  const { state } = useBudget();
+  const balance = sum((["Ruru", "Joselle"] as const).flatMap(person => walletMethods.map(method => walletBalance(state, person, method))));
+  return <div className="mx-auto grid max-w-4xl gap-4">
+    <PageHeader title="Dashboard" description="Track money in, money out, personal wallets, and savings." />
+    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <SummaryCard label="Money In" value={formatCurrency(totalIncome(state.incomes))} icon={TrendingUp} tone="success" />
+      <SummaryCard label="Money Out" value={formatCurrency(actualSpend(state.expenses))} icon={TrendingDown} tone="danger" />
+      <SummaryCard label="Wallet Balance" value={formatCurrency(balance)} icon={Wallet} />
+      <SummaryCard label="Savings" value={formatCurrency(totalSavings(state))} icon={PiggyBank} tone="accent" />
     </div>
-  );
+    <WalletBalances />
+    <Panel><h2 className="text-lg font-semibold">Recent activity</h2><div className="mt-4 grid gap-2">{buildTransactions(state).slice(0,12).map(t => <LedgerRow key={t.id} left={t.description} meta={formatShortDate(t.date) + " | " + t.type + " | " + t.person} amount={t.amount} />)}{!buildTransactions(state).length ? <EmptyState title="No activity yet" description="Start by recording Money In." /> : null}</div><NavLink to="/transactions" className="mt-4 inline-block text-sm font-semibold text-violet-700">View all activity</NavLink></Panel>
+  </div>;
 }
 
 function SalaryAllocationForm({ salary }: { salary: Income }) {
@@ -656,13 +570,29 @@ function LedgerRow({ left, meta, amount, action }: { left: string; meta: string;
   return <div className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 p-3"><div><p className="font-semibold">{left}</p><p className="text-sm text-slate-500">{meta}</p></div><div className="flex items-center gap-2"><p className="font-semibold"><MoneyDisplay value={amount} /></p>{action}</div></div>;
 }
 
+
+const walletMethods = ["Cash", "GCash", "Maya", "BDO", "GoTyme"] as const;
+
+function MoneyTypeFields({ initial }: { initial?: PaymentMethod }) {
+  const [kind, setKind] = useState(initial && initial !== "Cash" ? "Digital" : "Cash");
+  return <>
+    <FormQuestion label="Type of money"><select className={inputClass} value={kind} onChange={e => setKind(e.target.value)}><option value="Cash">Cash</option><option value="Digital">Digital money</option></select></FormQuestion>
+    {kind === "Digital" ? <FormQuestion label="Bank or wallet"><select className={inputClass} name="paymentMethod" required defaultValue={initial && walletMethods.includes(initial as typeof walletMethods[number]) && initial !== "Cash" ? initial : ""}><option value="" disabled>Choose bank or wallet</option>{walletMethods.filter(m => m !== "Cash").map(m => <option key={m}>{m}</option>)}</select></FormQuestion> : <input type="hidden" name="paymentMethod" value="Cash" />}
+  </>;
+}
+
+function WalletBalances() {
+  const { state } = useBudget();
+  return <Panel><h2 className="text-lg font-semibold">Your wallets</h2><div className="mt-4 grid gap-4 sm:grid-cols-2">{(["Ruru", "Joselle"] as const).map(person => <div key={person}><h3 className="mb-2 font-semibold">{person}</h3>{walletMethods.map(method => <MoneyRow key={method} label={method} value={walletBalance(state, person, method)} />)}</div>)}</div>{state.incomes.some(i => !i.paymentMethod) ? <p className="mt-3 text-sm text-slate-500">Older income without a payment source is not assigned to a wallet.</p> : null}</Panel>;
+}
+
 function IncomePage() {
   return (
     <div className="mx-auto grid w-full max-w-2xl gap-4">
       <section className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
         <div className="h-2 bg-[#673ab7]" />
         <div className="px-6 py-5">
-          <h1 className="text-2xl font-normal text-slate-950">Record Income</h1>
+          <h1 className="text-2xl font-normal text-slate-950">Money In</h1>
           <p className="mt-2 text-sm leading-6 text-slate-600">Record money coming in.</p>
         </div>
       </section>
@@ -683,7 +613,8 @@ function IncomeForm({ initial, onDone }: { initial?: Income | null; onDone: () =
     const source = getString(form, "source");
     const payload: Omit<Income, "id"> = {
       source,
-      person: source === "Other" ? "Shared" : selectedPerson,
+      person: selectedPerson,
+      paymentMethod: getString(form, "paymentMethod") as PaymentMethod,
       amount: getNumber(form, "amount"),
       date: getString(form, "date"),
       cutoffId: data.cutoff.id,
@@ -700,9 +631,10 @@ function IncomeForm({ initial, onDone }: { initial?: Income | null; onDone: () =
   return (
     <>
       <form className="grid gap-4" onSubmit={submit}>
-        <FormQuestion label="Income For">
-          <select className={cn(inputClass, "w-full")} name="person" value={selectedSource === "Other" ? "Shared" : selectedPerson} onChange={(event) => setSelectedPerson(event.target.value as Income["person"])} disabled={selectedSource === "Other"} required><option value="Husband">Ruru</option><option value="Wife">Joselle</option><option value="Shared">Shared Money</option></select>
+        <FormQuestion label="Whose money is coming in?">
+          <select className={cn(inputClass, "w-full")} name="person" value={selectedPerson} onChange={(event) => setSelectedPerson(event.target.value as Income["person"])} required><option value="Husband">Ruru</option><option value="Wife">Joselle</option>{initial?.person === "Shared" ? <option value="Shared">Shared Money (legacy)</option> : null}</select>
         </FormQuestion>
+        <MoneyTypeFields initial={initial?.paymentMethod} />
         <FormQuestion label="Income Source">
           <select className={cn(inputClass, "w-full")} name="source" value={selectedSource} onChange={(event) => setSelectedSource(event.target.value)} required>{sources.map((source) => <option key={source}>{source}</option>)}</select>
         </FormQuestion>
@@ -716,7 +648,7 @@ function IncomeForm({ initial, onDone }: { initial?: Income | null; onDone: () =
           <input className={cn(inputClass, "w-full")} name="notes" defaultValue={initial?.notes || ""} placeholder="Optional" />
         </FormQuestion>
         <div className="flex items-center gap-3 rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
-          <Button type="submit"><CheckCircle size={17} /> {initial ? "Save Income" : "Record Income"}</Button>
+          <Button type="submit"><CheckCircle size={17} /> {initial ? "Save Income" : "Money In"}</Button>
           {initial ? <Button variant="secondary" onClick={onDone}>Cancel</Button> : null}
         </div>
       </form>
@@ -728,25 +660,17 @@ function IncomeForm({ initial, onDone }: { initial?: Income | null; onDone: () =
 function ExpensesPage() {
   const data = useActiveFinance();
   const [paidBy, setPaidBy] = useState<Expense["paidBy"]>("Ruru");
-  const salaryCycle = currentSalaryCycle(data.state, paidBy);
+
   return (
     <div className="mx-auto grid w-full max-w-2xl gap-4">
       <section className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
         <div className="h-2 bg-[#673ab7]" />
         <div className="px-6 py-5">
-          <h1 className="text-2xl font-normal text-slate-950">Record Expense</h1>
+          <h1 className="text-2xl font-normal text-slate-950">Money Out</h1>
           <p className="mt-2 text-sm leading-6 text-slate-600">Record money going out.</p>
         </div>
       </section>
-      <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
-        <p className="text-sm font-medium text-slate-500">Available to Spend - {paidBy === "Shared Money" ? "Shared fund" : paidBy}</p>
-        <p className={cn("mt-2 text-3xl font-semibold tabular-nums", salaryCycle && salaryCycle.remaining < 0 ? "text-rose-700" : "text-emerald-700")}>
-          {formatCurrency(salaryCycle ? salaryCycle.remaining : 0)}
-        </p>
-        <p className="mt-2 text-sm leading-6 text-slate-600">
-          {salaryCycle ? "From " + formatShortDate(salaryCycle.salary.date) + " salary after allocations and recorded expenses." : "Record salary income first to calculate the available balance."}
-        </p>
-      </section>
+      <WalletBalances />
       <ExpenseForm paidBy={paidBy} onPaidByChange={setPaidBy} onDone={() => undefined} />
     </div>
   );
@@ -766,7 +690,7 @@ function ExpenseForm({ initial, onDone, paidBy, onPaidByChange }: { initial?: Ex
       category,
       paidBy: getString(form, "paidBy") as Expense["paidBy"],
       date: getString(form, "date"),
-      paymentMethod: "Cash",
+      paymentMethod: getString(form, "paymentMethod") as PaymentMethod,
       cutoffId: data.cutoff.id,
       notes: ""
     };
@@ -778,9 +702,10 @@ function ExpenseForm({ initial, onDone, paidBy, onPaidByChange }: { initial?: Ex
   return (
     <>
       <form className="grid gap-4" onSubmit={submit}>
-        <FormQuestion label="Whose Expense">
-          <select className={cn(inputClass, "w-full")} name="paidBy" value={paidBy} defaultValue={paidBy === undefined ? initial?.paidBy || "Ruru" : undefined} onChange={(event) => onPaidByChange?.(event.target.value as Expense["paidBy"])} required><option value="Ruru">Ruru</option><option value="Joselle">Joselle</option><option value="Shared Money">Shared fund</option></select>
+        <FormQuestion label="Whose money is going out?">
+          <select className={cn(inputClass, "w-full")} name="paidBy" value={paidBy} defaultValue={paidBy === undefined ? initial?.paidBy || "Ruru" : undefined} onChange={(event) => onPaidByChange?.(event.target.value as Expense["paidBy"])} required><option value="Ruru">Ruru</option><option value="Joselle">Joselle</option>{initial?.paidBy === "Shared Money" ? <option value="Shared Money">Shared fund (legacy)</option> : null}</select>
         </FormQuestion>
+        <MoneyTypeFields initial={initial?.paymentMethod} />
         <FormQuestion label="Amount">
           <input className={cn(inputClass, "w-full")} name="amount" required type="number" min="0.01" step="0.01" defaultValue={initial?.amount || ""} placeholder="0.00" />
         </FormQuestion>
@@ -794,7 +719,7 @@ function ExpenseForm({ initial, onDone, paidBy, onPaidByChange }: { initial?: Ex
           <input className={cn(inputClass, "w-full")} name="name" required defaultValue={initial?.name || ""} placeholder="Parking, bills, groceries" />
         </FormQuestion>
         <div className="flex items-center gap-3 rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
-          <Button type="submit"><CheckCircle size={17} /> {initial ? "Save Expense" : "Record Expense"}</Button>
+          <Button type="submit"><CheckCircle size={17} /> {initial ? "Save Expense" : "Money Out"}</Button>
           {initial ? <Button variant="secondary" onClick={onDone}>Cancel</Button> : null}
         </div>
       </form>
@@ -837,23 +762,24 @@ function FormQuestion({ label, children }: { label: string; children: React.Reac
 function BillsPage() {
   const data = useActiveFinance();
   const [editing, setEditing] = useState<Bill | null>(null);
-  const groups = upcomingBills(data.bills, data.state.profile.demoToday);
+  const groups = upcomingBills(data.state.bills, todayInputValue());
   return (
     <div className="grid gap-6">
-      <PageHeader title="Bills" description="Track upcoming, overdue, and paid household bills. Paid bills can create expenses automatically." />
+      <PageHeader title="Monthly Bills" description="Track upcoming, overdue, and paid household bills. Paid bills can create expenses automatically." />
       <Panel><BillForm key={editing?.id || "new-bill"} initial={editing} onDone={() => setEditing(null)} /></Panel>
       <div className="grid gap-4 xl:grid-cols-4">
         <BillGroup title="Due Today" bills={groups.dueToday} data={data} onEdit={setEditing} />
         <BillGroup title="Due This Week" bills={groups.dueThisWeek} data={data} onEdit={setEditing} />
         <BillGroup title="Overdue" bills={groups.overdue} data={data} onEdit={setEditing} />
         <BillGroup title="Upcoming" bills={groups.upcoming} data={data} onEdit={setEditing} />
+        <BillGroup title="Paid" bills={data.state.bills.filter(b => b.status === "Paid")} data={data} onEdit={setEditing} />
       </div>
     </div>
   );
 }
 
 function BillGroup({ title, bills, data, onEdit }: { title: string; bills: Bill[]; data: ReturnType<typeof useActiveFinance>; onEdit: (bill: Bill) => void }) {
-  return <Panel><h2 className="font-semibold">{title}</h2><div className="mt-3 grid gap-2">{bills.length ? bills.map((bill) => <div key={bill.id} className="rounded-lg border border-slate-200 p-3"><div className="flex items-start justify-between"><div><p className="font-semibold">{bill.name}</p><p className="text-sm text-slate-500">Due {formatShortDate(bill.dueDate)}</p></div><StatusBadge label={billStatus(bill, data.state.profile.demoToday)} tone={billStatus(bill, data.state.profile.demoToday) === "Overdue" ? "danger" : bill.status === "Paid" ? "success" : "warning"} /></div><p className="mt-2 font-semibold"><MoneyDisplay value={bill.amount} /></p><div className="mt-3 flex gap-2"><Button variant="secondary" onClick={() => data.actions.markBillPaid(bill.id, true)} disabled={bill.status === "Paid"}><CheckCircle size={16} /> Paid</Button><Button variant="ghost" onClick={() => onEdit(bill)} title="Edit bill"><Pencil size={16} /></Button><Button variant="ghost" onClick={() => data.actions.deleteBill(bill.id)} title="Delete bill"><Trash2 size={16} /></Button></div></div>) : <EmptyState title="Nothing here" description="No bills in this section." />}</div></Panel>;
+  return <Panel><h2 className="font-semibold">{title}</h2><div className="mt-3 grid gap-2">{bills.length ? bills.map((bill) => <div key={bill.id} className="rounded-lg border border-slate-200 p-3"><div className="flex items-start justify-between"><div><p className="font-semibold">{bill.name}</p><p className="text-sm text-slate-500">Due {formatShortDate(bill.dueDate)}</p><p className="text-sm text-slate-500">{bill.paidBy && bill.paymentMethod ? bill.paidBy + " · " + bill.paymentMethod : "Choose a payment source before paying"}</p></div><StatusBadge label={billStatus(bill, data.state.profile.demoToday)} tone={billStatus(bill, data.state.profile.demoToday) === "Overdue" ? "danger" : bill.status === "Paid" ? "success" : "warning"} /></div><p className="mt-2 font-semibold"><MoneyDisplay value={bill.amount} /></p><div className="mt-3 flex gap-2"><Button variant="secondary" onClick={() => bill.paymentMethod && bill.paidBy ? data.actions.markBillPaid(bill.id, true) : onEdit(bill)} disabled={bill.status === "Paid"}><CheckCircle size={16} /> Paid</Button><Button variant="ghost" onClick={() => onEdit(bill)} title="Edit bill"><Pencil size={16} /></Button><Button variant="ghost" onClick={() => data.actions.deleteBill(bill.id)} title="Delete bill"><Trash2 size={16} /></Button></div></div>) : <EmptyState title="Nothing here" description="No bills in this section." />}</div></Panel>;
 }
 
 function BillForm({ initial, onDone }: { initial?: Bill | null; onDone: () => void }) {
@@ -862,13 +788,15 @@ function BillForm({ initial, onDone }: { initial?: Bill | null; onDone: () => vo
     event.preventDefault();
     const form = new FormData(event.currentTarget);
     const payload = {
+      paidBy: getString(form, "paidBy") as Expense["paidBy"],
+      paymentMethod: getString(form, "paymentMethod") as PaymentMethod,
       name: getString(form, "name"),
       category: getString(form, "category"),
       amount: getNumber(form, "amount"),
       dueDate: getString(form, "dueDate"),
       assignedCutoffId: data.cutoff.id,
       frequency: getString(form, "frequency") as Bill["frequency"],
-      status: getString(form, "status") as Bill["status"],
+      status: initial?.status || "Pending" as Bill["status"],
       autoInclude: form.get("autoInclude") === "on",
       notes: getString(form, "notes")
     };
@@ -876,7 +804,7 @@ function BillForm({ initial, onDone }: { initial?: Bill | null; onDone: () => vo
     event.currentTarget.reset();
     onDone();
   };
-  return <form className="grid gap-3 md:grid-cols-4" onSubmit={submit}><Field label="Bill Name"><input className={inputClass} name="name" required defaultValue={initial?.name || ""} /></Field><Field label="Category"><input className={inputClass} name="category" required defaultValue={initial?.category || "Utilities"} /></Field><Field label="Amount"><input className={inputClass} name="amount" required type="number" min="0.01" step="0.01" defaultValue={initial?.amount || ""} /></Field><Field label="Due Date"><input className={inputClass} name="dueDate" required type="date" defaultValue={initial?.dueDate || data.state.profile.demoToday} /></Field><Field label="Frequency"><select className={inputClass} name="frequency" defaultValue={initial?.frequency || "Monthly"}><option>Monthly</option><option>Weekly</option><option>Quarterly</option><option>Yearly</option><option>One-Time</option></select></Field><Field label="Status"><select className={inputClass} name="status" defaultValue={initial?.status || "Pending"}><option>Pending</option><option>Paid</option><option>Overdue</option></select></Field><Field label="Notes"><input className={inputClass} name="notes" defaultValue={initial?.notes || ""} /></Field><label className="flex items-center gap-2 pt-7 text-sm font-semibold"><input name="autoInclude" type="checkbox" defaultChecked={initial?.autoInclude ?? true} /> Auto include in budget</label><div className="md:col-span-4 flex gap-2"><Button type="submit"><CheckCircle size={17} /> {initial ? "Save Bill" : "Add Bill"}</Button>{initial ? <Button variant="secondary" onClick={onDone}>Cancel</Button> : null}</div></form>;
+  return <form className="grid gap-3 md:grid-cols-4" onSubmit={submit}><Field label="Whose money will pay this bill?"><select className={inputClass} name="paidBy" required defaultValue={initial?.paidBy === "Joselle" ? "Joselle" : "Ruru"}><option>Ruru</option><option>Joselle</option></select></Field><div className="md:col-span-3 grid gap-3 md:grid-cols-2"><MoneyTypeFields initial={initial?.paymentMethod} /></div><Field label="Bill Name"><input className={inputClass} name="name" required defaultValue={initial?.name || ""} /></Field><Field label="Category"><input className={inputClass} name="category" required defaultValue={initial?.category || "Utilities"} /></Field><Field label="Amount"><input className={inputClass} name="amount" required type="number" min="0.01" step="0.01" defaultValue={initial?.amount || ""} /></Field><Field label="Due Date"><input className={inputClass} name="dueDate" required type="date" defaultValue={initial?.dueDate || data.state.profile.demoToday} /></Field><Field label="Frequency"><select className={inputClass} name="frequency" defaultValue={initial?.frequency || "Monthly"}><option>Monthly</option><option>Weekly</option><option>Quarterly</option><option>Yearly</option><option>One-Time</option></select></Field><Field label="Notes"><input className={inputClass} name="notes" defaultValue={initial?.notes || ""} /></Field><label className="flex items-center gap-2 pt-7 text-sm font-semibold"><input name="autoInclude" type="checkbox" defaultChecked={initial?.autoInclude ?? true} /> Auto include in budget</label><div className="md:col-span-4 flex gap-2"><Button type="submit"><CheckCircle size={17} /> {initial ? "Save Bill" : "Add Bill"}</Button>{initial ? <Button variant="secondary" onClick={onDone}>Cancel</Button> : null}</div></form>;
 }
 
 function DebtsPage() {
@@ -908,44 +836,42 @@ function DebtPaymentForm({ debt }: { debt: Debt }) {
 
 function SavingsPage() {
   const data = useActiveFinance();
-  const transactions = buildTransactions(data.state).filter((transaction) => transaction.type === "Savings Contribution" || transaction.type === "Savings Withdrawal");
+  const location = useLocation();
+  const [mode, setMode] = useState(location.search.includes("transfer=1") ? "Withdrawal" : "Contribution");
+  const [notice, setNotice] = useState("");
+  const [error, setError] = useState("");
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
     const amount = getNumber(form, "amount");
-    if (!Number.isFinite(amount) || amount <= 0) return;
-    data.actions.addSavingsTransaction({
-      amount,
-      date: getString(form, "date"),
-      type: "Contribution",
-      cutoffId: data.cutoff.id,
-      notes: getString(form, "notes")
-    });
+    const person = getString(form, "person") as "Ruru" | "Joselle";
+    const paymentMethod = getString(form, "paymentMethod") as PaymentMethod;
+    const goalId = getString(form, "goalId") || undefined;
+    const available = mode === "Withdrawal" ? availableSavings(data.state, goalId) : walletBalance(data.state, person, paymentMethod);
+    if (!Number.isFinite(amount) || amount <= 0 || amount > available) { setError("Enter an amount up to " + formatCurrency(Math.max(0, available)) + " available in the selected source."); return; }
+    data.actions.addSavingsTransaction({ amount, person, paymentMethod, goalId, date: getString(form, "date"), type: mode as "Contribution" | "Withdrawal", cutoffId: data.cutoff.id, notes: getString(form, "notes") });
     event.currentTarget.reset();
+    setError("");
+    setNotice(mode === "Withdrawal" ? "Savings transferred to " + person + " · " + paymentMethod + "." : "Money moved from your wallet into savings.");
   };
-  return (
-    <div className="grid gap-6">
-      <PageHeader title="Savings" description="Record money saved and watch your total grow." />
-      <SummaryCard label="Total Savings" value={formatCurrency(totalSavings(data.state))} icon={PiggyBank} tone="success" />
-      <Panel>
-        <form className="grid gap-3 md:grid-cols-3" onSubmit={submit}>
-          <Field label="Amount"><input className={inputClass} name="amount" type="number" min="0.01" step="0.01" required /></Field>
-          <Field label="Date"><input className={inputClass} name="date" type="date" defaultValue={todayInputValue()} required /></Field>
-          <Field label="Notes (optional)"><input className={inputClass} name="notes" /></Field>
-          <div className="md:col-span-3"><Button type="submit"><Plus size={17} /> Record Savings</Button></div>
-        </form>
-      </Panel>
-      <Panel>
-        <h2 className="text-lg font-semibold">Savings History</h2>
-        <div className="mt-4 grid gap-2">
-          {transactions.length ? transactions.map((transaction) => {
-            const record = data.state.savingsTransactions.find((item) => "tx-" + item.id === transaction.id);
-            return <LedgerRow key={transaction.id} left={record?.notes || transaction.description} meta={formatShortDate(transaction.date) + " | " + transaction.type} amount={transaction.type === "Savings Withdrawal" ? -transaction.amount : transaction.amount} />;
-          }) : <EmptyState title="No savings recorded yet" description="Record an amount above to start adding to your savings." />}
-        </div>
-      </Panel>
-    </div>
-  );
+  return <div className="mx-auto grid max-w-3xl gap-4">
+    <PageHeader title="Savings" description="Move money into savings or transfer it back to a personal wallet." />
+    <SummaryCard label="Total Savings" value={formatCurrency(totalSavings(data.state))} icon={PiggyBank} tone="success" />
+    <div className="flex flex-wrap gap-2"><Button variant={mode === "Contribution" ? "primary" : "secondary"} onClick={() => { setMode("Contribution"); setError(""); }}>Record Savings</Button><Button variant={mode === "Withdrawal" ? "primary" : "secondary"} onClick={() => { setMode("Withdrawal"); setError(""); }}>Transfer Savings to Wallet</Button></div>
+    <form className="grid gap-4" onSubmit={submit}>
+      <FormQuestion label={mode === "Withdrawal" ? "Whose wallet receives the money?" : "Whose money are you saving?"}><select className={inputClass} name="person" required><option>Ruru</option><option>Joselle</option></select></FormQuestion>
+      <MoneyTypeFields />
+      <FormQuestion label={mode === "Withdrawal" ? "Transfer from savings" : "Save to"}><select className={inputClass} name="goalId"><option value="">General savings · {formatCurrency(availableSavings(data.state))}</option>{data.state.savingsGoals.map(g => <option key={g.id} value={g.id}>{g.name} · {formatCurrency(g.currentSavings)}</option>)}</select></FormQuestion>
+      <FormQuestion label="Amount"><input className={inputClass} name="amount" type="number" min="0.01" step="0.01" required /></FormQuestion>
+      <FormQuestion label="Date"><input className={inputClass} name="date" type="date" defaultValue={todayInputValue()} required /></FormQuestion>
+      <FormQuestion label="Notes (optional)"><input className={inputClass} name="notes" /></FormQuestion>
+      {error ? <p role="alert" className="text-sm text-rose-700">{error}</p> : null}
+      <Button type="submit"><PiggyBank size={17} />{mode === "Withdrawal" ? "Transfer to Wallet" : "Record Savings"}</Button>
+    </form>
+    <WalletBalances />
+    <Panel><h2 className="text-lg font-semibold">Savings History</h2><div className="mt-4 grid gap-2">{buildTransactions(data.state).filter(t => t.type.includes("Savings")).map(t => <LedgerRow key={t.id} left={t.description} meta={formatShortDate(t.date) + " | " + t.type + " | " + t.person} amount={t.type === "Savings Withdrawal" ? -t.amount : t.amount} />)}</div></Panel>
+    {notice ? <SaveSuccessPopup message={notice} onClose={() => setNotice("")} /> : null}
+  </div>;
 }
 
 function WishlistPage() {

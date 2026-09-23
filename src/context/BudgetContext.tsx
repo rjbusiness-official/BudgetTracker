@@ -20,7 +20,7 @@ import type {
   SavingsTransaction,
   WishlistItem
 } from "@/src/types/budget";
-import { eachDay, expensesForSalaryPeriod, getActiveCutoff, normalizeImportedState, uid } from "@/src/utils/finance";
+import { payBill, availableSavings, walletBalance, eachDay, expensesForSalaryPeriod, getActiveCutoff, normalizeImportedState, uid } from "@/src/utils/finance";
 
 const storageKey = "budget-tracker-v4-ruru-joselle-empty";
 
@@ -148,6 +148,7 @@ const recalculateSalarySavingsRecords = (state: BudgetState): BudgetState => {
   const records: SalarySavingsRecord[] = [];
 
   salaries.forEach((salary, index) => {
+    if (salary.paymentMethod) return;
     const nextSalary = salaries.slice(index + 1).find((income) => income.person === salary.person);
     if (!nextSalary) return;
     const allocated = salaryAllocationsFor(state, salary.id).reduce((sum, allocation) => sum + allocation.amount, 0);
@@ -410,18 +411,7 @@ export function BudgetProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const markBillPaid = useCallback((billId: string, createExpense: boolean) => {
-    setState((current) => {
-      const bill = current.bills.find((item) => item.id === billId);
-      if (!bill) return current;
-      const expenses = createExpense && !current.expenses.some((expense) => expense.billId === billId)
-        ? [{ id: uid("expense"), name: bill.name, amount: bill.amount, category: "Monthly Bills", paidBy: "Shared Money" as const, date: bill.dueDate, paymentMethod: "Bank Transfer" as const, cutoffId: bill.assignedCutoffId, billId }, ...current.expenses]
-        : current.expenses;
-      return {
-        ...current,
-        bills: current.bills.map((item) => item.id === billId ? { ...item, status: "Paid" } : item),
-        expenses
-      };
-    });
+    setState(current => payBill(current, billId, new Date().toLocaleDateString("en-CA"), createExpense));
   }, []);
 
   const upsertDebt = useCallback((debt: Debt | Omit<Debt, "id">) => {
@@ -455,7 +445,11 @@ export function BudgetProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const addSavingsTransaction = useCallback((transaction: Omit<SavingsTransaction, "id">) => {
-    setState((current) => ({
+    setState((current) => {
+      if (!Number.isFinite(transaction.amount) || transaction.amount <= 0) return current;
+      if (transaction.type === "Withdrawal" && transaction.amount > availableSavings(current, transaction.goalId)) return current;
+      if (transaction.type === "Contribution" && transaction.person && transaction.paymentMethod && transaction.amount > walletBalance(current, transaction.person, transaction.paymentMethod)) return current;
+      return ({
       ...current,
       savingsTransactions: [{ ...transaction, id: uid("savingtx") }, ...current.savingsTransactions],
       savingsGoals: current.savingsGoals.map((goal) => {
@@ -463,7 +457,7 @@ export function BudgetProvider({ children }: { children: React.ReactNode }) {
         const delta = transaction.type === "Contribution" ? transaction.amount : -transaction.amount;
         return { ...goal, currentSavings: Math.max(0, goal.currentSavings + delta), contributionThisCutoff: transaction.type === "Contribution" ? goal.contributionThisCutoff + transaction.amount : goal.contributionThisCutoff };
       })
-    }));
+    }); });
   }, []);
 
   const upsertWishlistItem = useCallback((item: WishlistItem | Omit<WishlistItem, "id">) => {

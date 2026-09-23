@@ -226,7 +226,7 @@ export const buildTransactions = (state: BudgetState): Transaction[] => {
       description: goal ? goal.name : "Savings",
       type: transaction.type === "Contribution" ? "Savings Contribution" : "Savings Withdrawal",
       category: "Savings",
-      person: "Shared Money",
+      person: transaction.person ? transaction.person + " · " + transaction.paymentMethod : "Shared Money",
       amount: transaction.amount,
       cutoffId: transaction.cutoffId
     };
@@ -285,3 +285,33 @@ export const normalizeImportedState = (state: BudgetState): BudgetState => ({
   salaryAllocations: state.salaryAllocations || [],
   salarySavingsRecords: state.salarySavingsRecords || []
 });
+
+// Missing account metadata stays unassigned; never guess where legacy money is held.
+export const walletBalance = (state: BudgetState, person: "Ruru" | "Joselle", method: string) => {
+  const owner = person === "Ruru" ? "Husband" : "Wife";
+  const incoming = state.incomes.filter(i => i.person === owner && i.paymentMethod === method).reduce((n, i) => n + Math.round(i.amount * 100), 0);
+  const outgoing = state.expenses.filter(e => e.paidBy === person && e.paymentMethod === method).reduce((n, e) => n + Math.round(e.amount * 100), 0);
+  const savings = state.savingsTransactions.filter(t => t.person === person && t.paymentMethod === method).reduce((n, t) => n + (t.type === "Withdrawal" ? 1 : -1) * Math.round(t.amount * 100), 0);
+  return (incoming - outgoing + savings) / 100;
+};
+
+export const availableSavings = (state: BudgetState, goalId?: string) => goalId
+  ? state.savingsGoals.find(goal => goal.id === goalId)?.currentSavings || 0
+  : totalSavings(state) - state.savingsGoals.reduce((n, goal) => n + goal.currentSavings, 0);
+
+export const payBill = (state: BudgetState, billId: string, date: string, createExpense = true): BudgetState => {
+  const bill = state.bills.find(item => item.id === billId);
+  if (!bill || bill.status === "Paid" || !bill.paidBy || !bill.paymentMethod) return state;
+  const expenses: Expense[] = createExpense && !state.expenses.some(e => e.billId === billId)
+    ? [{ id: uid("expense"), name: bill.name, amount: bill.amount, category: "Monthly Bills", paidBy: bill.paidBy, paymentMethod: bill.paymentMethod, date, cutoffId: bill.assignedCutoffId, billId }, ...state.expenses]
+    : state.expenses;
+  const bills = state.bills.map(item => item.id === billId ? { ...item, status: "Paid" as const } : item);
+  if (bill.frequency === "Monthly") {
+    const [year, month, day] = bill.dueDate.split("-").map(Number);
+    const next = new Date(year, month, Math.min(day, new Date(year, month + 1, 0).getDate()));
+    const dueDate = next.getFullYear() + "-" + String(next.getMonth() + 1).padStart(2, "0") + "-" + String(next.getDate()).padStart(2, "0");
+    const cutoff = state.cutoffs.find(c => c.startDate <= dueDate && c.endDate >= dueDate);
+    bills.unshift({ ...bill, id: uid("bill"), dueDate, assignedCutoffId: cutoff?.id || bill.assignedCutoffId, status: "Pending" });
+  }
+  return { ...state, bills, expenses };
+};

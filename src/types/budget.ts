@@ -5,6 +5,8 @@ export type PaymentMethod =
   | "Cash"
   | "GCash"
   | "Maya"
+  | "BDO"
+  | "GoTyme"
   | "Bank Transfer"
   | "Debit Card"
   | "Credit Card"
@@ -46,6 +48,7 @@ export interface Cutoff {
 }
 
 export interface Income {
+  paymentMethod?: PaymentMethod;
   id: string;
   source: string;
   person: IncomePerson;
@@ -112,6 +115,8 @@ export interface Expense {
 }
 
 export interface Bill {
+  paidBy?: Expense["paidBy"];
+  paymentMethod?: PaymentMethod;
   id: string;
   name: string;
   category: string;
@@ -160,6 +165,8 @@ export interface SavingsGoal {
 }
 
 export interface SavingsTransaction {
+  person?: "Ruru" | "Joselle";
+  paymentMethod?: PaymentMethod;
   id: string;
   goalId?: string;
   amount: number;
