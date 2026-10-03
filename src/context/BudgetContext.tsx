@@ -29,7 +29,7 @@ interface BudgetActions {
   updateProfile: (profile: Partial<CoupleProfile>) => void;
   resetDemoData: () => void;
   importData: (state: BudgetState) => void;
-  addIncome: (income: Omit<Income, "id">) => void;
+  addIncome: (income: Omit<Income, "id">) => string;
   updateIncome: (income: Income) => void;
   deleteIncome: (id: string) => void;
   setSalaryAllocation: (incomeId: string, category: string, amount: number) => void;
@@ -278,7 +278,9 @@ export function BudgetProvider({ children }: { children: React.ReactNode }) {
   const importData = useCallback((nextState: BudgetState) => setState(cleanIncomingState(nextState)), []);
 
   const addIncome = useCallback((income: Omit<Income, "id">) => {
-    setState((current) => recalculateSalarySavingsRecords({ ...current, incomes: [{ ...income, id: uid("income") }, ...current.incomes] }));
+    const id = uid("income");
+    setState((current) => recalculateSalarySavingsRecords({ ...current, incomes: [{ ...income, id }, ...current.incomes] }));
+    return id;
   }, []);
 
   const updateIncome = useCallback((income: Income) => {

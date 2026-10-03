@@ -114,6 +114,7 @@ import { Button, EmptyState, Field, Modal, MoneyDisplay, PageHeader, Panel, Prog
 type Tone = "neutral" | "success" | "warning" | "danger" | "accent";
 
 const paymentMethods: PaymentMethod[] = ["Cash", "GCash", "Maya", "Bank Transfer", "Debit Card", "Credit Card", "Other"];
+const salaryAllocationCategories = ["Bills", "Transpo", "Gas", "Family", "Daily Budget", "Pocket Money"];
 const incomeSourceOptions = ["Salary", "Pag-IBIG Loan", "SSS Loan", "Commission", "Freelance", "Other"];
 const expenseFallbackCategories = ["Food", "Gas", "Parking", "Bills", "Monthly Bills", "Debt Payments", "Family Share", "Shopping", "Planned Purchases", "Personal", "Transportation", "Medical", "Entertainment", "Others"];
 const chartColors = ["#6c63f6", "#2cc5a7", "#f5bd3d", "#ef5d7a", "#2f3654", "#a8a1ff", "#c7c2ff", "#7b70ff", "#d9d6ff", "#f0b6c7", "#9aa3b2"];
@@ -605,6 +606,7 @@ function IncomeForm({ initial, onDone }: { initial?: Income | null; onDone: () =
   const data = useActiveFinance();
   const sources = initial?.source && !incomeSourceOptions.includes(initial.source) ? [initial.source, ...incomeSourceOptions] : incomeSourceOptions;
   const [saveNotice, setSaveNotice] = useState("");
+  const [allocationError, setAllocationError] = useState("");
   const [selectedSource, setSelectedSource] = useState(initial?.source || "Salary");
   const [selectedPerson, setSelectedPerson] = useState<Income["person"]>(initial?.person || "Husband");
   const submit = (event: FormEvent<HTMLFormElement>) => {
@@ -621,7 +623,18 @@ function IncomeForm({ initial, onDone }: { initial?: Income | null; onDone: () =
       type: incomeTypeForSource(source),
       notes: getString(form, "notes")
     };
-    if (initial) data.actions.updateIncome({ ...payload, id: initial.id }); else data.actions.addIncome(payload);
+    const allocations = source === "Salary"
+      ? salaryAllocationCategories.map((category) => ({ category, amount: getNumber(form, "allocation-" + category) }))
+      : [];
+    const otherAllocated = initial ? sum(data.state.salaryAllocations.filter((allocation) => allocation.incomeId === initial.id && !salaryAllocationCategories.includes(allocation.category)).map((allocation) => allocation.amount)) : 0;
+    if (source === "Salary" && Math.round((sum(allocations.map((allocation) => allocation.amount)) + otherAllocated) * 100) > Math.round(payload.amount * 100)) {
+      setAllocationError("Total allocations cannot exceed the salary amount.");
+      return;
+    }
+    const incomeId = initial ? initial.id : data.actions.addIncome(payload);
+    if (initial) data.actions.updateIncome({ ...payload, id: incomeId });
+    allocations.forEach(({ category, amount }) => data.actions.setSalaryAllocation(incomeId, category, amount));
+    setAllocationError("");
     event.currentTarget.reset();
     setSelectedSource(initial?.source || "Salary");
     setSelectedPerson(initial?.person || "Husband");
@@ -641,6 +654,19 @@ function IncomeForm({ initial, onDone }: { initial?: Income | null; onDone: () =
         <FormQuestion label="Amount">
           <input className={cn(inputClass, "w-full")} name="amount" required type="number" min="0.01" step="0.01" defaultValue={initial?.amount || ""} placeholder="0.00" />
         </FormQuestion>
+        {selectedSource === "Salary" ? (
+          <FormQuestion label="Salary Allocation">
+            <p className="mb-3 text-sm text-slate-500">Set aside an amount for each category. Leave unused categories blank.</p>
+            <div className="grid gap-3 sm:grid-cols-2">
+              {salaryAllocationCategories.map((category) => (
+                <Field key={category} label={category}>
+                  <input className={cn(inputClass, "w-full")} name={"allocation-" + category} aria-label={category + " allocation"} type="number" min="0" step="0.01" placeholder="0.00" defaultValue={initial ? data.state.salaryAllocations.find((allocation) => allocation.incomeId === initial.id && allocation.category === category)?.amount ?? "" : ""} />
+                </Field>
+              ))}
+            </div>
+            {allocationError ? <p className="mt-3 text-sm text-rose-600" role="alert">{allocationError}</p> : null}
+          </FormQuestion>
+        ) : null}
         <FormQuestion label="Date">
           <input className={cn(inputClass, "w-full")} name="date" required type="date" defaultValue={initial?.date || todayInputValue()} />
         </FormQuestion>
