@@ -1,4 +1,5 @@
 import type {
+  FundTransfer,
   Bill,
   BudgetCategory,
   BudgetState,
@@ -250,7 +251,10 @@ export const buildTransactions = (state: BudgetState): Transaction[] => {
     const category = allocation.category.replace(/^(bill:|wish:)/, "");
     return [{ id: "tx-" + allocation.id, date: income.date, description: category + " allocation", type: "Salary Allocation" as const, category, person: income.person === "Husband" ? "Ruru" : income.person === "Wife" ? "Joselle" : "Shared Money", amount: allocation.amount, cutoffId: income.cutoffId }];
   });
-  return [...incomeTx, ...expenseTx, ...debtTx, ...savingsTx, ...salarySavingsTx, ...allocationTx].sort((a, b) => b.date.localeCompare(a.date));
+  const transferTx: Transaction[] = (state.fundTransfers || []).map(transfer => ({
+    id: "tx-" + transfer.id, date: transfer.date, description: transfer.fromMethod + " → " + transfer.toMethod, type: "Fund Transfer", category: "Wallet Transfer", person: transfer.person, amount: transfer.amount, cutoffId: transfer.cutoffId
+  }));
+  return [...incomeTx, ...expenseTx, ...debtTx, ...savingsTx, ...salarySavingsTx, ...allocationTx, ...transferTx].sort((a, b) => b.date.localeCompare(a.date));
 };
 
 export const amountIsValid = (value: number) => Number.isFinite(value) && value > 0 && Math.round(value * 100) === value * 100;
@@ -315,7 +319,8 @@ export const walletBalance = (state: BudgetState, person: "Ruru" | "Joselle", me
   const outgoing = state.expenses.filter(e => e.paidBy === person && e.paymentMethod === method).reduce((n, e) => n + Math.round(e.amount * 100), 0);
   const savings = state.savingsTransactions.filter(t => t.person === person && t.paymentMethod === method).reduce((n, t) => n + (t.type === "Withdrawal" ? 1 : -1) * Math.round(t.amount * 100), 0);
   const debtPaid = (state.debtPayments || []).filter(payment => payment.person === person && payment.paymentMethod === method).reduce((sum, payment) => sum + Math.round(payment.amount * 100), 0);
-  return (incoming - outgoing + savings - debtPaid - Math.round(walletSalaryAllocations(state, person, method) * 100)) / 100;
+  const transfers = (state.fundTransfers || []).filter(transfer => transfer.person === person).reduce((total, transfer) => total + (transfer.toMethod === method ? Math.round(transfer.amount * 100) : 0) - (transfer.fromMethod === method ? Math.round(transfer.amount * 100) : 0), 0);
+  return (incoming - outgoing + savings - debtPaid + transfers - Math.round(walletSalaryAllocations(state, person, method) * 100)) / 100;
 };
 
 export const availableSavings = (state: BudgetState, goalId?: string) => goalId
@@ -347,4 +352,44 @@ export const applyDebtPayment = (state: BudgetState, payment: DebtPayment): Budg
     debtPayments: [{ ...payment, balanceAfterPayment: Math.round((debt.remainingBalance - payment.amount) * 100) / 100 }, ...state.debtPayments],
     debts: state.debts.map(item => item.id === debt.id ? { ...item, remainingBalance: Math.round((item.remainingBalance - payment.amount) * 100) / 100 } : item)
   };
+};
+
+export const defaultWalletMethods = ["Cash", "GCash", "Maya", "BDO", "GoTyme", "Bank Transfer", "Debit Card", "Credit Card", "Other"];
+
+export const normalizeWalletMethods = (methods: string[]) => {
+  const seen = new Set<string>();
+  return methods.map(method => method.trim()).filter(method => {
+    const key = method.toLowerCase();
+    if (!method || seen.has(key)) return false;
+    seen.add(key); return true;
+  });
+};
+
+export const getWalletMethods = (state: BudgetState) => normalizeWalletMethods(state.walletMethods ?? defaultWalletMethods);
+
+// Keep historical accounts visible even if they are removed from the entry list.
+export const allWalletMethods = (state: BudgetState) => normalizeWalletMethods([
+  ...getWalletMethods(state),
+  ...state.incomes.map(item => item.paymentMethod || ""),
+  ...state.expenses.map(item => item.paymentMethod || ""),
+  ...state.savingsTransactions.map(item => item.paymentMethod || ""),
+  ...(state.debtPayments || []).map(item => item.paymentMethod || ""),
+  ...(state.fundTransfers || []).flatMap(item => [item.fromMethod, item.toMethod])
+]);
+
+
+
+export const fundTransferError = (state: BudgetState, transfer: Omit<FundTransfer, "id">): string => {
+  if (!["Ruru", "Joselle"].includes(transfer.person)) return "Choose whose funds to transfer.";
+  if (!getWalletMethods(state).includes(transfer.fromMethod) || !getWalletMethods(state).includes(transfer.toMethod)) return "Choose a source and destination wallet.";
+  if (transfer.fromMethod === transfer.toMethod) return "Choose different source and destination wallets.";
+  if (!Number.isFinite(transfer.amount) || transfer.amount <= 0 || Math.abs(transfer.amount * 100 - Math.round(transfer.amount * 100)) > 0.000001) return "Enter a positive amount with up to two decimal places.";
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(transfer.date) || !Number.isFinite(Date.parse(transfer.date))) return "Choose a valid transfer date.";
+  if (Math.round(transfer.amount * 100) > Math.round(walletBalance(state, transfer.person, transfer.fromMethod) * 100)) return "The source wallet has insufficient available funds.";
+  return "";
+};
+
+export const applyFundTransfer = (state: BudgetState, transfer: FundTransfer): BudgetState => {
+  if (fundTransferError(state, transfer) || (state.fundTransfers || []).some(item => item.id === transfer.id)) return state;
+  return { ...state, fundTransfers: [transfer, ...(state.fundTransfers || [])] };
 };

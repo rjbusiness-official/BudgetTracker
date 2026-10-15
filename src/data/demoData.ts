@@ -47,6 +47,7 @@ export const createDemoBudgetState = (): BudgetState => ({
     }
   ],
   activeCutoffId: currentCutoffId,
+  fundTransfers: [],
   incomes: [],
   salaryAllocations: [],
   salarySavingsRecords: [],

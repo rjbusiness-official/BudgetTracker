@@ -15,6 +15,7 @@ import type {
   DebtPlanSettings,
   Expense,
   FamilyShare,
+  FundTransfer,
   Income,
   SalarySavingsRecord,
   SavingsGoal,
@@ -22,7 +23,7 @@ import type {
   VacationPlan,
   WishlistItem
 } from "@/src/types/budget";
-import { applyDebtPayment, payBill, availableSavings, walletBalance, eachDay, expensesForSalaryPeriod, getActiveCutoff, normalizeImportedState, uid } from "@/src/utils/finance";
+import { normalizeWalletMethods, applyFundTransfer, fundTransferError, applyDebtPayment, payBill, availableSavings, walletBalance, eachDay, expensesForSalaryPeriod, getActiveCutoff, normalizeImportedState, uid } from "@/src/utils/finance";
 
 import { normalizeExpenseTypes } from "@/src/utils/expenseTypes";
 import { normalizeBillCategories } from "@/src/utils/monthlyBills";
@@ -36,6 +37,8 @@ interface SalaryWorkflowInput {
 }
 
 interface BudgetActions {
+  setWalletMethods: (methods: string[]) => void;
+  transferFunds: (transfer: Omit<FundTransfer, "id">) => string;
   setExpenseTypes: (types: string[]) => void;
   setMonthlyBillCategories: (categories: string[]) => void;
  recordSalaryWorkflow: (input: SalaryWorkflowInput) => void;
@@ -554,7 +557,21 @@ export function BudgetProvider({ children }: { children: React.ReactNode }) {
     setState(current => ({ ...current, expenseTypes: normalizeExpenseTypes(types) }));
   }, []);
 
+  const transferFunds = useCallback((transfer: Omit<FundTransfer, "id">) => {
+    const error = fundTransferError(state, transfer);
+    if (error) return error;
+    const record = { ...transfer, id: uid("transfer") };
+    setState(current => applyFundTransfer(current, record));
+    return "";
+  }, [state]);
+
+  const setWalletMethods = useCallback((methods: string[]) => {
+    setState(current => ({ ...current, walletMethods: normalizeWalletMethods(methods) }));
+  }, []);
+
   const actions = useMemo<BudgetActions>(() => ({
+    setWalletMethods,
+    transferFunds,
     setExpenseTypes,
     setMonthlyBillCategories,
     recordSalaryWorkflow,
@@ -594,6 +611,8 @@ export function BudgetProvider({ children }: { children: React.ReactNode }) {
     upsertFamilyShare,
     deleteFamilyShare
   }), [
+    setWalletMethods,
+    transferFunds,
     setExpenseTypes,
     setMonthlyBillCategories,
     recordSalaryWorkflow,

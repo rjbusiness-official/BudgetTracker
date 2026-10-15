@@ -38,7 +38,9 @@ test("server-renders the budget tracker loading shell", async () => {
 
 test("keeps the current workflow and removes retired routes", async () => {
   const source = await readFile(new URL("../src/components/BudgetApp.tsx", import.meta.url), "utf8");
+  assert.ok(source.includes('<Route path="/" element={<Navigate to="/dashboard" replace />} />'));
+  assert.equal(source.includes("function ActionHomePage"), false);
   const routes = [...source.matchAll(/<Route path="([^"]+)"/g)].map(match => match[1]);
-  assert.deepEqual(routes, ["/", "/dashboard", "/income", "/expenses", "/expense-history", "/bills", "/debts", "/wishlist", "/transactions", "/settings", "/expense-types", "*"]);
-  for (const label of ["Todays Expense", "Money In", "Dashboard"]) assert.ok(source.includes('label="' + label + '"'));
+  assert.deepEqual(routes, ["/", "/dashboard", "/income", "/transfers", "/expenses", "/expense-history", "/bills", "/debts", "/wishlist", "/transactions", "/settings", "/expense-types", "/wallet-settings", "*"]);
+  for (const label of ["Todays Expense", "Money In", "Dashboard"]) assert.ok(source.includes('label:"' + label + '"'));
 });

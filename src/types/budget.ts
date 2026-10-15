@@ -10,7 +10,8 @@ export type PaymentMethod =
   | "Bank Transfer"
   | "Debit Card"
   | "Credit Card"
-  | "Other";
+  | "Other"
+  | (string & {});
 
 export interface User {
   id: string;
@@ -219,6 +220,7 @@ export interface RecurringTransaction {
 }
 
 export type TransactionType =
+  | "Fund Transfer"
   | "Salary Allocation"
   | "Income"
   | "Expense"
@@ -262,7 +264,20 @@ export interface DebtPlanSettings {
   strategy: "avalanche" | "snowball";
 }
 
+export interface FundTransfer {
+  id: string;
+  person: "Ruru" | "Joselle";
+  fromMethod: PaymentMethod;
+  toMethod: PaymentMethod;
+  amount: number;
+  date: string;
+  cutoffId: string;
+  notes?: string;
+}
+
 export interface BudgetState {
+  walletMethods?: string[];
+  fundTransfers?: FundTransfer[];
   expenseTypes?: string[];
   monthlyBillCategories?: string[];
   dataRevision?: string;

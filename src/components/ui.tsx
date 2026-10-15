@@ -58,7 +58,7 @@ export function SummaryCard({
         <span className={cn("flex h-9 w-9 items-center justify-center rounded-2xl", toneClass)}><Icon size={18} /></span>
       </div>
       <div className="mt-4 text-2xl font-semibold text-slate-950">{value}</div>
-      {helper ? <p className="mt-1 text-sm text-slate-500">{helper}</p> : null}
+      {helper ? <p className="mt-1 whitespace-pre-line text-sm text-slate-500">{helper}</p> : null}
     </div>
   );
 }
