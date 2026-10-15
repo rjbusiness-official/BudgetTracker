@@ -1,8 +1,8 @@
 ﻿@import "tailwindcss";
 
 :root {
-  --background: #ded8ff;
-  --foreground: #2f3654;
+  --background: #b9b0cc;
+  --foreground: #1e1e29;
 }
 
 @theme inline {
@@ -24,7 +24,7 @@ html {
 body {
   color-scheme: light;
   min-height: 100vh;
-  background: radial-gradient(circle at top left, #f6f1ff 0, #ded8ff 42%, #cfc8ff 100%);
+  background: #b9b0cc;
   color: var(--foreground);
   font-family: "Inter", "Segoe UI", Arial, Helvetica, sans-serif;
 }
@@ -103,12 +103,17 @@ textarea {
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #ded8ff;
-    --foreground: #2f3654;
+    --background: #b9b0cc;
+    --foreground: #1e1e29;
   }
 
   body {
-    background: radial-gradient(circle at top left, #f6f1ff 0, #ded8ff 42%, #cfc8ff 100%);
+    background: #b9b0cc;
     color: var(--foreground);
   }
 }
+
+button, a, input, select { -webkit-tap-highlight-color: transparent; }
+button:not(:disabled), select { cursor: pointer; }
+::selection { background: #e3dcf6; color: #1e1e29; }
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } *, *::before, *::after { transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; } }

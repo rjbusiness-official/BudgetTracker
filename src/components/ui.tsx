@@ -17,9 +17,9 @@ export function PageHeader({
   actions?: ReactNode;
 }) {
   return (
-    <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+    <div className="flex flex-col gap-4 rounded-[28px] bg-white p-6 shadow-[0_8px_30px_rgba(30,30,40,0.04)] md:flex-row md:items-center md:justify-between">
       <div>
-        <h1 className="text-2xl font-semibold tracking-normal text-slate-950 md:text-3xl">{title}</h1>
+        <h1 className="text-2xl font-semibold tracking-tight text-slate-950 md:text-4xl">{title}</h1>
         {description ? <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">{description}</p> : null}
       </div>
       {actions ? <div className="flex flex-wrap items-center gap-2">{actions}</div> : null}
@@ -28,7 +28,7 @@ export function PageHeader({
 }
 
 export function Panel({ children, className }: { children: ReactNode; className?: string }) {
-  return <section className={cn("rounded-lg border border-white bg-white p-4 shadow-[0_18px_45px_rgba(47,54,84,0.08)]", className)}>{children}</section>;
+  return <section className={cn("rounded-[28px] border border-white bg-white p-5 shadow-[0_8px_30px_rgba(30,30,40,0.04)] sm:p-6", className)}>{children}</section>;
 }
 
 export function SummaryCard({
@@ -45,17 +45,17 @@ export function SummaryCard({
   tone?: "neutral" | "success" | "warning" | "danger" | "accent";
 }) {
   const toneClass = {
-    neutral: "bg-[#f0edff] text-[#3f3a78]",
-    success: "bg-[#ddf8f2] text-[#168d78]",
+    neutral: "bg-[#e3dcf6] text-[#51436d]",
+    success: "bg-[#dff9df] text-[#28673a]",
     warning: "bg-[#fff3d2] text-[#a87509]",
     danger: "bg-[#ffe5eb] text-[#c43d5c]",
-    accent: "bg-[#ece9ff] text-[#5b52e6]"
+    accent: "bg-[#e3dcf6] text-[#65518c]"
   }[tone];
   return (
-    <div className="relative overflow-hidden rounded-lg border border-white bg-white p-4 shadow-[0_18px_45px_rgba(47,54,84,0.08)]">
+    <div className="relative overflow-hidden rounded-[28px] border border-white bg-white p-5 shadow-[0_8px_30px_rgba(30,30,40,0.04)] sm:p-6">
       <div className="flex items-center justify-between gap-3">
         <span className="text-sm font-medium text-slate-500">{label}</span>
-        <span className={cn("flex h-9 w-9 items-center justify-center rounded-lg", toneClass)}><Icon size={18} /></span>
+        <span className={cn("flex h-9 w-9 items-center justify-center rounded-2xl", toneClass)}><Icon size={18} /></span>
       </div>
       <div className="mt-4 text-2xl font-semibold text-slate-950">{value}</div>
       {helper ? <p className="mt-1 text-sm text-slate-500">{helper}</p> : null}
@@ -72,7 +72,7 @@ export function ProgressBar({ value, tone = "success" }: { value: number; tone?:
     success: "bg-[#2cc5a7]",
     warning: "bg-[#f5bd3d]",
     danger: "bg-[#ef5d7a]",
-    accent: "bg-[#6c63f6]"
+    accent: "bg-[#249fff]"
   }[tone];
   return (
     <div className="h-2 w-full overflow-hidden rounded-full bg-slate-100">
@@ -87,7 +87,7 @@ export function StatusBadge({ label, tone = "neutral" }: { label: string; tone?:
     success: "border-[#b8eee3] bg-[#effcf9] text-[#168d78]",
     warning: "border-[#f9dda0] bg-[#fff8e4] text-[#a87509]",
     danger: "border-[#fac1cf] bg-[#fff1f4] text-[#c43d5c]",
-    accent: "border-[#d8d3ff] bg-[#f0edff] text-[#5b52e6]"
+    accent: "border-[#c8e7ff] bg-[#e7f5ff] text-[#1688e6]"
   }[tone];
   return <span className={cn("inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-semibold", cls)}>{label}</span>;
 }
@@ -110,13 +110,13 @@ export function Button({
   title?: string;
 }) {
   const cls = {
-    primary: "bg-[#6c63f6] text-white shadow-[0_12px_24px_rgba(103,93,198,0.28)] hover:bg-[#5b52e6]",
-    secondary: "border border-white bg-white text-slate-500 shadow-[0_12px_26px_rgba(47,54,84,0.08)] hover:bg-[#f0edff]",
-    ghost: "text-slate-500 hover:bg-[#f0edff]",
+    primary: "bg-[#1e1e29] text-white shadow-sm hover:bg-[#343442]",
+    secondary: "border border-transparent bg-[#f1f1f3] text-[#292934] hover:bg-[#e4e0f5]",
+    ghost: "text-slate-500 hover:bg-[#e7f5ff]",
     danger: "bg-[#ef5d7a] text-white hover:bg-[#d94f6c]"
   }[variant];
   return (
-    <button type={type} className={cn("inline-flex min-h-10 items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-50", cls, className)} onClick={onClick} disabled={disabled} title={title}>
+    <button type={type} className={cn("inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl px-3 py-2 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-50", cls, className)} onClick={onClick} disabled={disabled} title={title}>
       {children}
     </button>
   );
@@ -132,11 +132,11 @@ export function Field({ label, children, hint }: { label: string; children: Reac
   );
 }
 
-export const inputClass = "min-h-10 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-950 outline-none transition placeholder:text-slate-400 focus:border-[#6c63f6] focus:ring-2 focus:ring-[#d8d3ff]";
+export const inputClass = "w-full min-h-12 rounded-2xl border border-[#e7e7ec] bg-[#f7f7f9] px-3 py-2 text-sm text-slate-950 outline-none transition placeholder:text-slate-400 focus:border-[#249fff] focus:ring-2 focus:ring-[#c8e7ff]";
 
 export function EmptyState({ title, description }: { title: string; description: string }) {
   return (
-    <div className="rounded-lg border border-dashed border-slate-300 p-6 text-center">
+    <div className="rounded-2xl border border-dashed border-slate-300 p-6 text-center">
       <p className="font-semibold text-slate-900">{title}</p>
       <p className="mt-1 text-sm text-slate-500">{description}</p>
     </div>
@@ -149,7 +149,7 @@ export function Modal({ title, children, onClose }: { title: string; children: R
       <div className="max-h-[92vh] w-full overflow-auto rounded-t-2xl border border-slate-200 bg-white p-5 shadow-[0_28px_80px_rgba(103,93,198,0.20)] md:max-w-2xl md:rounded-2xl">
         <div className="mb-4 flex items-center justify-between gap-4">
           <h2 className="text-lg font-semibold text-slate-950">{title}</h2>
-          <button className="flex h-10 w-10 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100" onClick={onClose} aria-label="Close modal" type="button">
+          <button className="flex h-10 w-10 items-center justify-center rounded-2xl text-slate-500 hover:bg-slate-100" onClick={onClose} aria-label="Close modal" type="button">
             <X size={20} />
           </button>
         </div>

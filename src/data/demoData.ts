@@ -1,9 +1,12 @@
 import type { BudgetState } from "@/src/types/budget";
 
+export const budgetDataRevision = "empty-budget-2026-10-15";
+
 const currentCutoffId = "cutoff-2026-09-01";
 const nextCutoffId = "cutoff-2026-09-16";
 
 export const createDemoBudgetState = (): BudgetState => ({
+  dataRevision: budgetDataRevision,
   users: [
     { id: "user-ruru", householdId: "ruru-joselle-household", name: "Ruru", role: "husband" },
     { id: "user-joselle", householdId: "ruru-joselle-household", name: "Joselle", role: "wife" }
@@ -60,3 +63,7 @@ export const createDemoBudgetState = (): BudgetState => ({
   familyShares: [],
   recurringTransactions: []
 });
+
+// Reset pre-release data once; later saves retain the revision and their records.
+export const resetOutdatedBudget = (state: BudgetState): BudgetState =>
+  state.dataRevision === budgetDataRevision ? state : createDemoBudgetState();

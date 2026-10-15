@@ -1,7 +1,7 @@
 ﻿"use client";
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
-import { createDemoBudgetState } from "@/src/data/demoData";
+import { budgetDataRevision, createDemoBudgetState, resetOutdatedBudget } from "@/src/data/demoData";
 import { useAuth } from "@/src/context/AuthContext";
 import { supabase, supabaseHouseholdId } from "@/src/lib/supabase";
 import type {
@@ -185,7 +185,7 @@ const recalculateSalarySavingsRecords = (state: BudgetState): BudgetState => {
 };
 
 const cleanIncomingState = (state: BudgetState) => {
-  const normalized = normalizeImportedState(state);
+  const normalized = normalizeImportedState(resetOutdatedBudget(state));
   return recalculateSalarySavingsRecords(containsOldDemoData(normalized) ? createDemoBudgetState() : normalized);
 };
 const loadInitialState = () => {
@@ -288,7 +288,7 @@ export function BudgetProvider({ children }: { children: React.ReactNode }) {
 
   const resetDemoData = useCallback(() => setState(createDemoBudgetState()), []);
 
-  const importData = useCallback((nextState: BudgetState) => setState(cleanIncomingState(nextState)), []);
+  const importData = useCallback((nextState: BudgetState) => setState(cleanIncomingState({ ...nextState, dataRevision: budgetDataRevision })), []);
 
   const addIncome = useCallback((income: Omit<Income, "id">) => {
     const id = uid("income");

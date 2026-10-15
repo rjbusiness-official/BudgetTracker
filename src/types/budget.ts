@@ -261,6 +261,7 @@ export interface DebtPlanSettings {
 }
 
 export interface BudgetState {
+  dataRevision?: string;
   debtPlan?: DebtPlanSettings;
   users: User[];
   household: Household;
