@@ -24,6 +24,8 @@ import type {
 } from "@/src/types/budget";
 import { applyDebtPayment, payBill, availableSavings, walletBalance, eachDay, expensesForSalaryPeriod, getActiveCutoff, normalizeImportedState, uid } from "@/src/utils/finance";
 
+import { normalizeBillCategories } from "@/src/utils/monthlyBills";
+
 const storageKey = "budget-tracker-v4-ruru-joselle-empty";
 
 interface SalaryWorkflowInput {
@@ -33,6 +35,7 @@ interface SalaryWorkflowInput {
 }
 
 interface BudgetActions {
+  setMonthlyBillCategories: (categories: string[]) => void;
  recordSalaryWorkflow: (input: SalaryWorkflowInput) => void;
   updateDebtPlan: (plan: DebtPlanSettings) => void;
   upsertVacationPlan: (plan: VacationPlan | Omit<VacationPlan, "id">) => void;
@@ -537,7 +540,12 @@ export function BudgetProvider({ children }: { children: React.ReactNode }) {
     });
   }, []);
 
+  const setMonthlyBillCategories = useCallback((categories: string[]) => {
+    setState(current => ({ ...current, monthlyBillCategories: normalizeBillCategories(categories) }));
+  }, []);
+
   const actions = useMemo<BudgetActions>(() => ({
+    setMonthlyBillCategories,
     recordSalaryWorkflow,
     upsertVacationPlan,
     deleteVacationPlan,
@@ -575,6 +583,7 @@ export function BudgetProvider({ children }: { children: React.ReactNode }) {
     upsertFamilyShare,
     deleteFamilyShare
   }), [
+    setMonthlyBillCategories,
     recordSalaryWorkflow,
     updateDebtPlan,
     setActiveCutoff,

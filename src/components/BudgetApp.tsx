@@ -9,8 +9,9 @@ import { TodayExpenses, MoneyInWorkflow } from "./MoneyWorkflow";
 import DebtAmortization from "@/src/components/DebtAmortization";
 import { AuthProvider, useAuth } from "@/src/context/AuthContext";
 import { BudgetProvider, useBudget } from "@/src/context/BudgetContext";
-import type { Bill, Debt, Expense, PaymentMethod, WishlistItem } from "@/src/types/budget";
-import { walletBalance, actualSpend, billStatus, buildTransactions, debtProgress, formatCurrency, formatShortDate, getActiveCutoff, savingsProgress, totalIncome, totalSavings, upcomingBills } from "@/src/utils/finance";
+import type { Debt, WishlistItem } from "@/src/types/budget";
+import { monthlyBillCategories } from "@/src/utils/monthlyBills";
+import { walletBalance, actualSpend, buildTransactions, debtProgress, formatCurrency, formatShortDate, getActiveCutoff, savingsProgress, totalIncome, totalSavings } from "@/src/utils/finance";
 import { Button, EmptyState, Field, MoneyDisplay, PageHeader, Panel, ProgressBar, StatusBadge, SummaryCard, cn, inputClass } from "@/src/components/ui";
 
 const chartColors = ["#249fff", "#c28afb", "#80e9f4", "#819fff", "#e3dcf6", "#acf5af", "#1e1e29"];
@@ -199,13 +200,7 @@ function LedgerRow({ left, meta, amount, action }: { left: string; meta: string;
 
 const walletMethods = ["Cash", "GCash", "Maya", "BDO", "GoTyme"] as const;
 
-function MoneyTypeFields({ initial }: { initial?: PaymentMethod }) {
-  const [kind, setKind] = useState(initial && initial !== "Cash" ? "Digital" : "Cash");
-  return <>
-    <FormQuestion label="Type of money"><select className={inputClass} value={kind} onChange={e => setKind(e.target.value)}><option value="Cash">Cash</option><option value="Digital">Digital money</option></select></FormQuestion>
-    {kind === "Digital" ? <FormQuestion label="Bank or wallet"><select className={inputClass} name="paymentMethod" required defaultValue={initial && walletMethods.includes(initial as typeof walletMethods[number]) && initial !== "Cash" ? initial : ""}><option value="" disabled>Choose bank or wallet</option>{walletMethods.filter(m => m !== "Cash").map(m => <option key={m}>{m}</option>)}</select></FormQuestion> : <input type="hidden" name="paymentMethod" value="Cash" />}
-  </>;
-}
+
 
 function WalletBalances() {
   const { state } = useBudget();
@@ -217,61 +212,34 @@ function ExpensesPage() {
  return <div className="mx-auto grid max-w-4xl gap-4"><PageHeader title="Expense history" description="Review expenses recorded through Todays Expense." actions={<NavLink to="/expenses" className="text-sm font-semibold text-violet-700">Record expenses</NavLink>}/><Panel><div className="grid gap-3">{[...state.expenses].sort((a,b)=>b.date.localeCompare(a.date)).map(expense=><LedgerRow key={expense.id} left={expense.name} meta={[expense.payeeName,formatShortDate(expense.date),expense.category,expense.paidBy,expense.paymentMethod].filter(Boolean).join(" | ")} amount={expense.amount} action={<Button variant="ghost" onClick={()=>actions.deleteExpense(expense.id)} title="Delete expense"><Trash2 size={16}/></Button>}/>)}{!state.expenses.length&&<EmptyState title="No expenses yet" description="Record an expense to see it here."/>}</div></Panel></div>;
 }
 
-function FormQuestion({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <label className="grid gap-3 rounded-lg border border-slate-200 bg-white p-5 text-sm font-medium text-slate-800 shadow-sm">
-      <span>{label}</span>
-      {children}
-    </label>
-  );
-}
+
 
 function BillsPage() {
-  const data = useActiveFinance();
-  const [editing, setEditing] = useState<Bill | null>(null);
-  const groups = upcomingBills(data.state.bills, todayInputValue());
-  return (
-    <div className="grid gap-6">
-      <PageHeader title="Monthly Bills" description="Track upcoming, overdue, and paid household bills. Paid bills can create expenses automatically." />
-      <Panel><BillForm key={editing?.id || "new-bill"} initial={editing} onDone={() => setEditing(null)} /></Panel>
-      <div className="grid gap-4 xl:grid-cols-4">
-        <BillGroup title="Due Today" bills={groups.dueToday} data={data} onEdit={setEditing} />
-        <BillGroup title="Due This Week" bills={groups.dueThisWeek} data={data} onEdit={setEditing} />
-        <BillGroup title="Overdue" bills={groups.overdue} data={data} onEdit={setEditing} />
-        <BillGroup title="Upcoming" bills={groups.upcoming} data={data} onEdit={setEditing} />
-        <BillGroup title="Paid" bills={data.state.bills.filter(b => b.status === "Paid")} data={data} onEdit={setEditing} />
-      </div>
-    </div>
-  );
-}
-
-function BillGroup({ title, bills, data, onEdit }: { title: string; bills: Bill[]; data: ReturnType<typeof useActiveFinance>; onEdit: (bill: Bill) => void }) {
-  return <Panel><h2 className="font-semibold">{title}</h2><div className="mt-3 grid gap-2">{bills.length ? bills.map((bill) => <div key={bill.id} className="rounded-2xl border border-[#ececf1] p-4"><div className="flex items-start justify-between"><div><p className="font-semibold">{bill.name}</p><p className="text-sm text-slate-500">Due {formatShortDate(bill.dueDate)}</p><p className="text-sm text-slate-500">{bill.paidBy && bill.paymentMethod ? bill.paidBy + " · " + bill.paymentMethod : "Choose a payment source before paying"}</p></div><StatusBadge label={billStatus(bill, data.state.profile.demoToday)} tone={billStatus(bill, data.state.profile.demoToday) === "Overdue" ? "danger" : bill.status === "Paid" ? "success" : "warning"} /></div><p className="mt-2 font-semibold"><MoneyDisplay value={bill.amount} /></p><div className="mt-3 flex gap-2"><Button variant="secondary" onClick={() => bill.paymentMethod && bill.paidBy ? data.actions.markBillPaid(bill.id, true) : onEdit(bill)} disabled={bill.status === "Paid"}><CheckCircle size={16} /> Paid</Button><Button variant="ghost" onClick={() => onEdit(bill)} title="Edit bill"><Pencil size={16} /></Button><Button variant="ghost" onClick={() => data.actions.deleteBill(bill.id)} title="Delete bill"><Trash2 size={16} /></Button></div></div>) : <EmptyState title="Nothing here" description="No bills in this section." />}</div></Panel>;
-}
-
-function BillForm({ initial, onDone }: { initial?: Bill | null; onDone: () => void }) {
-  const data = useActiveFinance();
+  const { state, actions } = useBudget();
+  const [name, setName] = useState("");
+  const [error, setError] = useState("");
+  const categories = monthlyBillCategories(state);
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    const form = new FormData(event.currentTarget);
-    const payload = {
-      paidBy: getString(form, "paidBy") as Expense["paidBy"],
-      paymentMethod: getString(form, "paymentMethod") as PaymentMethod,
-      name: getString(form, "name"),
-      category: getString(form, "category"),
-      amount: getNumber(form, "amount"),
-      dueDate: getString(form, "dueDate"),
-      assignedCutoffId: data.cutoff.id,
-      frequency: getString(form, "frequency") as Bill["frequency"],
-      status: initial?.status || "Pending" as Bill["status"],
-      autoInclude: form.get("autoInclude") === "on",
-      notes: getString(form, "notes")
-    };
-    data.actions.upsertBill(initial ? { ...payload, id: initial.id } : payload);
-    event.currentTarget.reset();
-    onDone();
+    const category = name.trim();
+    if (!category) { setError("Enter a category name."); return; }
+    if (categories.some(item => item.toLowerCase() === category.toLowerCase())) { setError("This category is already listed."); return; }
+    actions.setMonthlyBillCategories([...categories, category]);
+    setName("");
+    setError("");
   };
-  return <form className="grid gap-3 md:grid-cols-4" onSubmit={submit}><Field label="Whose money will pay this bill?"><select className={inputClass} name="paidBy" required defaultValue={initial?.paidBy === "Joselle" ? "Joselle" : "Ruru"}><option>Ruru</option><option>Joselle</option></select></Field><div className="md:col-span-3 grid gap-3 md:grid-cols-2"><MoneyTypeFields initial={initial?.paymentMethod} /></div><Field label="Bill Name"><input className={inputClass} name="name" required defaultValue={initial?.name || ""} /></Field><Field label="Category"><input className={inputClass} name="category" required defaultValue={initial?.category || "Utilities"} /></Field><Field label="Amount"><input className={inputClass} name="amount" required type="number" min="0.01" step="0.01" defaultValue={initial?.amount || ""} /></Field><Field label="Due Date"><input className={inputClass} name="dueDate" required type="date" defaultValue={initial?.dueDate || data.state.profile.demoToday} /></Field><Field label="Frequency"><select className={inputClass} name="frequency" defaultValue={initial?.frequency || "Monthly"}><option>Monthly</option><option>Weekly</option><option>Quarterly</option><option>Yearly</option><option>One-Time</option></select></Field><Field label="Notes"><input className={inputClass} name="notes" defaultValue={initial?.notes || ""} /></Field><label className="flex items-center gap-2 pt-7 text-sm font-semibold"><input name="autoInclude" type="checkbox" defaultChecked={initial?.autoInclude ?? true} /> Auto include in budget</label><div className="md:col-span-4 flex gap-2"><Button type="submit"><CheckCircle size={17} /> {initial ? "Save Bill" : "Add Bill"}</Button>{initial ? <Button variant="secondary" onClick={onDone}>Cancel</Button> : null}</div></form>;
+  return <div className="mx-auto grid max-w-3xl gap-5">
+    <PageHeader title="Monthly Allocation Bills" description="Manage the bill categories used when you allocate your salary." />
+    <Panel>
+      <ul className="divide-y divide-[#ececf1]">{categories.map(category => <li key={category} className="flex items-center justify-between gap-3 py-3"><span className="font-medium">{category}</span><Button variant="ghost" title={"Remove " + category} onClick={() => actions.setMonthlyBillCategories(categories.filter(item => item !== category))}><Trash2 size={16} /><span className="sr-only">Remove {category}</span></Button></li>)}</ul>
+      {!categories.length && <p className="py-3 text-sm text-slate-500">No categories yet. Add one below.</p>}
+      <form onSubmit={submit} className="mt-5 flex flex-col items-stretch gap-3 border-t border-[#ececf1] pt-5 sm:flex-row sm:items-end">
+        <div className="min-w-0 flex-1"><Field label="New category"><input className={inputClass} required maxLength={80} value={name} onChange={event => {setName(event.target.value);setError("");}} placeholder="e.g. Rent" /></Field></div>
+        <Button type="submit" className="w-fit shrink-0">Add category</Button>
+      </form>
+      {error && <p role="alert" className="mt-3 text-sm text-rose-700">{error}</p>}
+    </Panel>
+  </div>;
 }
 
 function DebtsPage() {
@@ -292,7 +260,7 @@ function DebtForm({ initial, onDone }: { initial?: Debt | null; onDone: () => vo
     event.currentTarget.reset();
     onDone();
   };
-  return <form className="grid gap-3 md:grid-cols-4" onSubmit={submit}><Field label="Debt Name"><input className={inputClass} name="name" required defaultValue={initial?.name || ""} /></Field><Field label="Creditor"><input className={inputClass} name="creditor" required defaultValue={initial?.creditor || ""} /></Field><Field label="Debt Type"><select className={inputClass} name="type" defaultValue={initial?.type || "Credit Card"}><option>Credit Card</option><option>Personal Loan</option><option>Car Loan</option><option>Home Loan</option><option>Installment</option><option>Borrowed Money</option><option>Other</option></select></Field><Field label="Original Amount"><input className={inputClass} name="originalAmount" type="number" min="0.01" step="0.01" required defaultValue={initial?.originalAmount || ""} /></Field><Field label="Remaining Balance" hint="Leave blank to start with the original amount."><input className={inputClass} name="remainingBalance" type="number" min="0" step="0.01" defaultValue={initial?.remainingBalance ?? ""} /></Field><Field label="Monthly minimum payment"><input className={inputClass} name="minimumPayment" type="number" min="0" step="0.01" required defaultValue={initial?.minimumPayment || ""} /></Field><Field label="Preferred monthly payment"><input className={inputClass} name="plannedPayment" type="number" min="0" step="0.01" required defaultValue={initial?.plannedPayment || ""} /></Field><Field label="Interest rate (%)"><input className={inputClass} name="interestRate" type="number" min="0" step="0.01" defaultValue={initial?.interestRate || 0} /></Field><Field label="Rate period"><select className={inputClass} name="interestRatePeriod" defaultValue={initial?.interestRatePeriod || "Annual"}><option>Annual</option><option>Monthly</option></select></Field><Field label="First due date" hint="Repeats monthly on this day."><input className={inputClass} name="dueDate" type="date" required defaultValue={initial?.dueDate || todayInputValue()} /></Field><Field label="Notes"><input className={inputClass} name="notes" defaultValue={initial?.notes || ""} /></Field><div className="md:col-span-4 flex gap-2"><Button type="submit"><CheckCircle size={17} /> {initial ? "Save Debt" : "Add Debt"}</Button>{initial ? <Button variant="secondary" onClick={onDone}>Cancel</Button> : null}</div></form>;
+  return <form className="grid gap-3 md:grid-cols-4" onSubmit={submit}><Field label="Debt Name"><input className={inputClass} name="name" required defaultValue={initial?.name || ""} /></Field><Field label="Creditor"><select className={inputClass} name="creditor" required defaultValue={initial?.creditor === "Ruru" || initial?.creditor === "Joselle" ? initial.creditor : ""}><option value="" disabled>Select creditor</option><option value="Ruru">Ruru</option><option value="Joselle">Joselle</option></select></Field><Field label="Debt Type"><select className={inputClass} name="type" defaultValue={initial?.type || "Credit Card"}><option>Credit Card</option><option>Personal Loan</option><option>Car Loan</option><option>Home Loan</option><option>Installment</option><option>Borrowed Money</option><option>Other</option></select></Field><Field label="Original Amount"><input className={inputClass} name="originalAmount" type="number" min="0.01" step="0.01" required defaultValue={initial?.originalAmount || ""} /></Field><Field label="Remaining Balance" hint="Leave blank to start with the original amount."><input className={inputClass} name="remainingBalance" type="number" min="0" step="0.01" defaultValue={initial?.remainingBalance ?? ""} /></Field><Field label="Monthly minimum payment"><input className={inputClass} name="minimumPayment" type="number" min="0" step="0.01" required defaultValue={initial?.minimumPayment || ""} /></Field><Field label="Preferred monthly payment"><input className={inputClass} name="plannedPayment" type="number" min="0" step="0.01" required defaultValue={initial?.plannedPayment || ""} /></Field><Field label="Interest rate (%)"><input className={inputClass} name="interestRate" type="number" min="0" step="0.01" defaultValue={initial?.interestRate || 0} /></Field><Field label="Rate period"><select className={inputClass} name="interestRatePeriod" defaultValue={initial?.interestRatePeriod || "Annual"}><option>Annual</option><option>Monthly</option></select></Field><Field label="First due date" hint="Repeats monthly on this day."><input className={inputClass} name="dueDate" type="date" required defaultValue={initial?.dueDate || todayInputValue()} /></Field><Field label="Notes"><input className={inputClass} name="notes" defaultValue={initial?.notes || ""} /></Field><div className="md:col-span-4 flex gap-2"><Button type="submit"><CheckCircle size={17} /> {initial ? "Save Debt" : "Add Debt"}</Button>{initial ? <Button variant="secondary" onClick={onDone}>Cancel</Button> : null}</div></form>;
 }
 
 function WishlistPage() {
@@ -345,5 +313,5 @@ function SettingsPage() {
     };
     reader.readAsText(file);
   };
-  return <div className="grid gap-6"><PageHeader title="Settings" description="Manage monthly bill allocations, debts, wishlist goals, and your saved budget data." /><Panel><div className="grid gap-3 sm:grid-cols-3"><HomeActionLink to="/bills" label="Allocation for Monthly bills" icon={CalendarDays} tone="accent"/><HomeActionLink to="/debts" label="List of debts" icon={CreditCard} tone="accent"/><HomeActionLink to="/wishlist" label="List of wishlist" icon={Target} tone="accent"/></div></Panel><Panel><h2 className="text-lg font-semibold">Data Management</h2><p className="mt-1 text-sm text-slate-500">Budget data syncs to Supabase after login and keeps a local cache on this device.</p><div className="mt-4 flex flex-wrap gap-2"><Button variant="secondary" onClick={exportData}><ArrowDown size={17} /> Export Data</Button><Button variant="secondary" onClick={() => fileInputRef.current?.click()}><ArrowUp size={17} /> Import Data</Button><Button variant="danger" onClick={data.actions.resetDemoData}><Trash2 size={17} /> Reset All Data</Button></div><input ref={fileInputRef} type="file" accept="application/json" className="hidden" onChange={(event) => importData(event.target.files?.[0])} /></Panel></div>;
+  return <div className="grid gap-6"><PageHeader title="Settings" description="Manage monthly bill allocations, debts, wishlist goals, and your saved budget data." /><Panel><div className="grid gap-3 sm:grid-cols-3"><HomeActionLink to="/bills" label="Monthly Allocation Bills" icon={CalendarDays} tone="accent"/><HomeActionLink to="/debts" label="List of debts" icon={CreditCard} tone="accent"/><HomeActionLink to="/wishlist" label="List of wishlist" icon={Target} tone="accent"/></div></Panel><Panel><h2 className="text-lg font-semibold">Data Management</h2><p className="mt-1 text-sm text-slate-500">Budget data syncs to Supabase after login and keeps a local cache on this device.</p><div className="mt-4 flex flex-wrap gap-2"><Button variant="secondary" onClick={exportData}><ArrowDown size={17} /> Export Data</Button><Button variant="secondary" onClick={() => fileInputRef.current?.click()}><ArrowUp size={17} /> Import Data</Button><Button variant="danger" onClick={data.actions.resetDemoData}><Trash2 size={17} /> Reset All Data</Button></div><input ref={fileInputRef} type="file" accept="application/json" className="hidden" onChange={(event) => importData(event.target.files?.[0])} /></Panel></div>;
 }

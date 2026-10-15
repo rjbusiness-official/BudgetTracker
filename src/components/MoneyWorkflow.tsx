@@ -4,6 +4,7 @@ import type { FormEvent } from "react";
 import { NavLink } from "react-router-dom";
 import { useBudget } from "@/src/context/BudgetContext";
 import type { Expense, Income, PaymentMethod } from "@/src/types/budget";
+import { monthlyBillCategories } from "@/src/utils/monthlyBills";
 import { formatCurrency, getActiveCutoff } from "@/src/utils/finance";
 import DebtAmortization from "./DebtAmortization";
 import { Button, Field, Panel, PageHeader, inputClass } from "./ui";
@@ -45,7 +46,7 @@ export function MoneyInWorkflow() {
  const [notice,setNotice]=useState("");
  const [expanded,setExpanded]=useState<string[]>([]);
  const [saved,setSaved]=useState(false);
- const bills = [...new Set(["Electricity","Water","Internet","Entertainment","Others",...state.bills.map(b=>b.name)])];
+ const bills = monthlyBillCategories(state);
  const debts=state.debts.filter(d=>d.remainingBalance>0);
  const wishes=state.wishlistItems.filter(w=>w.status!=="Purchased"&&w.status!=="Cancelled");
  const val=(key:string)=>values[key]||"";

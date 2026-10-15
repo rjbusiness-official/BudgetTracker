@@ -261,6 +261,7 @@ export interface DebtPlanSettings {
 }
 
 export interface BudgetState {
+  monthlyBillCategories?: string[];
   dataRevision?: string;
   debtPlan?: DebtPlanSettings;
   users: User[];
