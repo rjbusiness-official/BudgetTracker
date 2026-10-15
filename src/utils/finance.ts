@@ -244,7 +244,13 @@ export const buildTransactions = (state: BudgetState): Transaction[] => {
       cutoffId: income?.cutoffId || state.activeCutoffId
     };
   });
-  return [...incomeTx, ...expenseTx, ...debtTx, ...savingsTx, ...salarySavingsTx].sort((a, b) => b.date.localeCompare(a.date));
+  const allocationTx: Transaction[] = (state.salaryAllocations || []).filter(allocation => allocation.category !== "Savings").flatMap(allocation => {
+    const income = state.incomes.find(item => item.id === allocation.incomeId);
+    if (!income) return [];
+    const category = allocation.category.replace(/^(bill:|wish:)/, "");
+    return [{ id: "tx-" + allocation.id, date: income.date, description: category + " allocation", type: "Salary Allocation" as const, category, person: income.person === "Husband" ? "Ruru" : income.person === "Wife" ? "Joselle" : "Shared Money", amount: allocation.amount, cutoffId: income.cutoffId }];
+  });
+  return [...incomeTx, ...expenseTx, ...debtTx, ...savingsTx, ...salarySavingsTx, ...allocationTx].sort((a, b) => b.date.localeCompare(a.date));
 };
 
 export const amountIsValid = (value: number) => Number.isFinite(value) && value > 0 && Math.round(value * 100) === value * 100;
@@ -288,13 +294,28 @@ export const normalizeImportedState = (state: BudgetState): BudgetState => ({
 });
 
 // Missing account metadata stays unassigned; never guess where legacy money is held.
+// Savings allocations already leave the wallet through savings transactions.
+export const walletSalaryAllocations = (state: BudgetState, person: "Ruru" | "Joselle", method: string) => {
+  const owner = person === "Ruru" ? "Husband" : "Wife";
+  const incomeIds = new Set(state.incomes.filter(income => income.person === owner && income.paymentMethod === method).map(income => income.id));
+  return (state.salaryAllocations || []).filter(allocation => incomeIds.has(allocation.incomeId) && allocation.category !== "Savings")
+    .reduce((total, allocation) => total + Math.round(allocation.amount * 100), 0) / 100;
+};
+
+export const salaryAllocationSummary = (state: BudgetState, incomeId: string) => {
+  const income = state.incomes.find(item => item.id === incomeId);
+  const allocated = (state.salaryAllocations || []).filter(item => item.incomeId === incomeId).reduce((total, item) => total + Math.round(item.amount * 100), 0);
+  const debts = (state.debtPayments || []).filter(item => item.incomeId === incomeId).reduce((total, item) => total + Math.round(item.amount * 100), 0);
+  return { allocated: (allocated + debts) / 100, remaining: (Math.round((income?.amount || 0) * 100) - allocated - debts) / 100 };
+};
+
 export const walletBalance = (state: BudgetState, person: "Ruru" | "Joselle", method: string) => {
   const owner = person === "Ruru" ? "Husband" : "Wife";
   const incoming = state.incomes.filter(i => i.person === owner && i.paymentMethod === method).reduce((n, i) => n + Math.round(i.amount * 100), 0);
   const outgoing = state.expenses.filter(e => e.paidBy === person && e.paymentMethod === method).reduce((n, e) => n + Math.round(e.amount * 100), 0);
   const savings = state.savingsTransactions.filter(t => t.person === person && t.paymentMethod === method).reduce((n, t) => n + (t.type === "Withdrawal" ? 1 : -1) * Math.round(t.amount * 100), 0);
   const debtPaid = (state.debtPayments || []).filter(payment => payment.person === person && payment.paymentMethod === method).reduce((sum, payment) => sum + Math.round(payment.amount * 100), 0);
-  return (incoming - outgoing + savings - debtPaid) / 100;
+  return (incoming - outgoing + savings - debtPaid - Math.round(walletSalaryAllocations(state, person, method) * 100)) / 100;
 };
 
 export const availableSavings = (state: BudgetState, goalId?: string) => goalId

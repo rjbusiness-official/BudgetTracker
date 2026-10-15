@@ -148,6 +148,7 @@ export interface Debt {
 }
 
 export interface DebtPayment {
+  incomeId?: string;
   balanceAfterPayment?: number;
   person?: "Ruru" | "Joselle";
   paymentMethod?: PaymentMethod;
@@ -218,6 +219,7 @@ export interface RecurringTransaction {
 }
 
 export type TransactionType =
+  | "Salary Allocation"
   | "Income"
   | "Expense"
   | "Bill Payment"
@@ -261,6 +263,7 @@ export interface DebtPlanSettings {
 }
 
 export interface BudgetState {
+  expenseTypes?: string[];
   monthlyBillCategories?: string[];
   dataRevision?: string;
   debtPlan?: DebtPlanSettings;

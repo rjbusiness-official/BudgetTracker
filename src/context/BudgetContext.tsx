@@ -24,6 +24,7 @@ import type {
 } from "@/src/types/budget";
 import { applyDebtPayment, payBill, availableSavings, walletBalance, eachDay, expensesForSalaryPeriod, getActiveCutoff, normalizeImportedState, uid } from "@/src/utils/finance";
 
+import { normalizeExpenseTypes } from "@/src/utils/expenseTypes";
 import { normalizeBillCategories } from "@/src/utils/monthlyBills";
 
 const storageKey = "budget-tracker-v4-ruru-joselle-empty";
@@ -35,6 +36,7 @@ interface SalaryWorkflowInput {
 }
 
 interface BudgetActions {
+  setExpenseTypes: (types: string[]) => void;
   setMonthlyBillCategories: (categories: string[]) => void;
  recordSalaryWorkflow: (input: SalaryWorkflowInput) => void;
   updateDebtPlan: (plan: DebtPlanSettings) => void;
@@ -42,7 +44,7 @@ interface BudgetActions {
   deleteVacationPlan: (id: string) => void;
   setActiveCutoff: (cutoffId: string) => void;
   updateProfile: (profile: Partial<CoupleProfile>) => void;
-  resetDemoData: () => void;
+  resetDemoData: (password: string) => Promise<void>;
   importData: (state: BudgetState) => void;
   addIncome: (income: Omit<Income, "id">) => string;
   updateIncome: (income: Income) => void;
@@ -204,7 +206,7 @@ const loadInitialState = () => {
 };
 
 export function BudgetProvider({ children }: { children: React.ReactNode }) {
-  const { user } = useAuth();
+  const { user, verifyPassword } = useAuth();
   const [state, setState] = useState<BudgetState>(loadInitialState);
   const [remoteReady, setRemoteReady] = useState(!supabase);
   const [sync, setSync] = useState<BudgetSyncStatus>({
@@ -289,7 +291,11 @@ export function BudgetProvider({ children }: { children: React.ReactNode }) {
     setState((current) => ({ ...current, profile: { ...current.profile, ...profile, currency: "PHP", theme: "light" } }));
   }, []);
 
-  const resetDemoData = useCallback(() => setState(createDemoBudgetState()), []);
+  const resetDemoData = useCallback(async (password: string) => {
+    if (!remoteReady) throw new Error("Wait for your budget to finish loading before resetting.");
+    await verifyPassword(password);
+    setState(createDemoBudgetState());
+  }, [remoteReady, verifyPassword]);
 
   const importData = useCallback((nextState: BudgetState) => setState(cleanIncomingState({ ...nextState, dataRevision: budgetDataRevision })), []);
 
@@ -533,7 +539,7 @@ export function BudgetProvider({ children }: { children: React.ReactNode }) {
       const id = uid("income");
       const person = income.person === "Husband" ? "Ruru" as const : "Joselle" as const;
       let next: BudgetState = { ...current, incomes: [{ ...income, id }, ...current.incomes], salaryAllocations: [...current.salaryAllocations, ...allocations.filter(a=>a.amount>0).map(a=>({ ...a, id:uid("salaryalloc"), incomeId:id }))] };
-      for (const payment of debtPayments) next = applyDebtPayment(next, { ...payment, id:uid("debtpay"), person, paymentMethod:income.paymentMethod, date:income.date, cutoffId:income.cutoffId, paymentSource:"Salary - " + person });
+      for (const payment of debtPayments) next = applyDebtPayment(next, { ...payment, incomeId:id, id:uid("debtpay"), person, paymentMethod:income.paymentMethod, date:income.date, cutoffId:income.cutoffId, paymentSource:"Salary - " + person });
       const savings = allocations.find(a=>a.category === "Savings")?.amount || 0;
       if (savings > 0) next = { ...next, savingsTransactions: [{ id:uid("savingtx"), amount:savings, date:income.date, cutoffId:income.cutoffId, type:"Contribution", person, paymentMethod:income.paymentMethod, notes:"Salary savings" }, ...next.savingsTransactions] };
       return recalculateSalarySavingsRecords(next);
@@ -544,7 +550,12 @@ export function BudgetProvider({ children }: { children: React.ReactNode }) {
     setState(current => ({ ...current, monthlyBillCategories: normalizeBillCategories(categories) }));
   }, []);
 
+  const setExpenseTypes = useCallback((types: string[]) => {
+    setState(current => ({ ...current, expenseTypes: normalizeExpenseTypes(types) }));
+  }, []);
+
   const actions = useMemo<BudgetActions>(() => ({
+    setExpenseTypes,
     setMonthlyBillCategories,
     recordSalaryWorkflow,
     upsertVacationPlan,
@@ -583,6 +594,7 @@ export function BudgetProvider({ children }: { children: React.ReactNode }) {
     upsertFamilyShare,
     deleteFamilyShare
   }), [
+    setExpenseTypes,
     setMonthlyBillCategories,
     recordSalaryWorkflow,
     updateDebtPlan,

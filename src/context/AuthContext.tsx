@@ -2,10 +2,12 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import type { FormEvent, ReactNode } from "react";
+import { createClient } from "@supabase/supabase-js";
+import { verifyResetPassword } from "@/src/utils/verifyResetPassword";
 import type { User as SupabaseUser } from "@supabase/supabase-js";
 import { Heart, PhilippinePeso } from "lucide-react";
 import { Button, Field, cn, inputClass } from "@/src/components/ui";
-import { isSupabaseConfigured, supabase, supabaseLoginEmail, supabaseLoginUsername } from "@/src/lib/supabase";
+import { isSupabaseConfigured, supabase, supabaseLoginEmail, supabaseLoginUsername, supabaseUrl, supabasePublishableKey } from "@/src/lib/supabase";
 
 type AuthStatus = "checking" | "signed-out" | "signed-in";
 
@@ -13,6 +15,7 @@ interface AuthContextValue {
   user: SupabaseUser | null;
   username: string;
   signOut: () => Promise<void>;
+  verifyPassword: (password: string) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -70,7 +73,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setSubmitting(false);
   }, []);
 
-  const value = useMemo<AuthContextValue>(() => ({ user, username: supabaseLoginUsername, signOut }), [signOut, user]);
+  const verifyPassword = useCallback(async (password: string) => {
+    // Verify separately so a failed attempt cannot replace the current session.
+    const verificationClient = createClient(supabaseUrl, supabasePublishableKey, {
+      auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false }
+    });
+    await verifyResetPassword(verificationClient.auth, user, password);
+  }, [user]);
+
+  const value = useMemo<AuthContextValue>(() => ({ user, username: supabaseLoginUsername, signOut, verifyPassword }), [signOut, user, verifyPassword]);
 
   if (!isSupabaseConfigured) {
     return <AuthShell title="Supabase setup needed" message="Add your Supabase URL and publishable key before logging in." />;
