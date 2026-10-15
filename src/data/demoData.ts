@@ -1,6 +1,6 @@
 import type { BudgetState } from "@/src/types/budget";
 
-export const budgetDataRevision = "empty-budget-2026-10-15";
+export const budgetDataRevision = "empty-budget-2026-10-15-reset-2";
 
 const currentCutoffId = "cutoff-2026-09-01";
 const nextCutoffId = "cutoff-2026-09-16";
