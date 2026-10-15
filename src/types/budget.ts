@@ -101,6 +101,8 @@ export interface DailyBudget {
 }
 
 export interface Expense {
+  payeeName?: string;
+  formDate?: string;
   id: string;
   name: string;
   amount: number;
@@ -139,12 +141,16 @@ export interface Debt {
   minimumPayment: number;
   plannedPayment: number;
   interestRate: number;
+  interestRatePeriod?: "Annual" | "Monthly";
   dueDate: string;
   assignedCutoffId: string;
   notes?: string;
 }
 
 export interface DebtPayment {
+  balanceAfterPayment?: number;
+  person?: "Ruru" | "Joselle";
+  paymentMethod?: PaymentMethod;
   id: string;
   debtId: string;
   amount: number;
@@ -230,7 +236,32 @@ export interface Transaction {
   cutoffId: string;
 }
 
+export interface VacationBudgetItem {
+  category: string;
+  planned: number;
+  actual: number;
+}
+
+export interface VacationPlan {
+  id: string;
+  name: string;
+  destination: string;
+  startDate: string;
+  endDate: string;
+  travelers: number;
+  amountSaved: number;
+  status: "Planning" | "Booked" | "Completed" | "Cancelled";
+  items: VacationBudgetItem[];
+  notes: string;
+}
+
+export interface DebtPlanSettings {
+  monthlyBudget: number;
+  strategy: "avalanche" | "snowball";
+}
+
 export interface BudgetState {
+  debtPlan?: DebtPlanSettings;
   users: User[];
   household: Household;
   profile: CoupleProfile;
@@ -248,6 +279,7 @@ export interface BudgetState {
   savingsGoals: SavingsGoal[];
   savingsTransactions: SavingsTransaction[];
   wishlistItems: WishlistItem[];
+  vacationPlans: VacationPlan[];
   familyShares: FamilyShare[];
   recurringTransactions: RecurringTransaction[];
 }

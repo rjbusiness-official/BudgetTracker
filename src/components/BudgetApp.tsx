@@ -1,122 +1,18 @@
-﻿"use client";
-
-import { useEffect, useMemo, useRef, useState } from "react";
+"use client";
+import { useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
-import { HashRouter, NavLink, Route, Routes, useLocation } from "react-router-dom";
-import {
-  AlertTriangle,
-  ArrowLeft,
-  ArrowDown,
-  ArrowUp,
-  Calendar,
-  CalendarDays,
-  Car,
-  ChartBar,
-  CheckCircle,
-  CircleDollarSign,
-  Clock,
-  CreditCard,
-  Fuel,
-  Heart,
-  Landmark,
-  LayoutDashboard,
-  List,
-  LogOut,
-  Pencil,
-  PhilippinePeso,
-  PiggyBank,
-  Plus,
-  Receipt,
-  ShoppingCart,
-  Target,
-  Trash2,
-  TrendingDown,
-  TrendingUp,
-  Utensils,
-  Wallet
-} from "lucide-react";
+import { HashRouter, Navigate, NavLink, Route, Routes, useLocation } from "react-router-dom";
+import { ArrowLeft, ArrowDown, ArrowUp, CalendarDays, CheckCircle, CreditCard, Heart, Landmark, LayoutDashboard, LogOut, Pencil, PhilippinePeso, PiggyBank, Receipt, ShoppingCart, Target, Trash2, TrendingDown, TrendingUp, Wallet } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
-import {
-  Area,
-  AreaChart,
-  Bar,
-  BarChart,
-  CartesianGrid,
-  Cell,
-  Line,
-  LineChart,
-  Pie,
-  PieChart,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis
-} from "recharts";
+import { Bar, BarChart, CartesianGrid, Cell, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { TodayExpenses, MoneyInWorkflow } from "./MoneyWorkflow";
+import DebtAmortization from "@/src/components/DebtAmortization";
 import { AuthProvider, useAuth } from "@/src/context/AuthContext";
 import { BudgetProvider, useBudget } from "@/src/context/BudgetContext";
-import type {
-  Bill,
-  BudgetCategory,
-  Debt,
-  Expense,
-  FamilyShare,
-  Income,
-  PaymentMethod,
-  SalaryAllocation,
-  WishlistItem
-} from "@/src/types/budget";
-import {
-  walletBalance,
-  availableSavings,
-  actualSpend,
-  actualUpToDate,
-  billStatus,
-  budgetHealth,
-  buildTransactions,
-  calculateMonthlySummary,
-  categoriesForCutoff,
-  categoryActual,
-  cumulativeDailySeries,
-  dailyActual,
-  dailyDifference,
-  dailyPlanSeries,
-  dailyPlansForCutoff,
-  dailyStatus,
-  daysRemaining,
-  debtProgress,
-  expensesForCutoff,
-  expensesForSalaryPeriod,
-  formatCurrency,
-  formatLongDate,
-  formatShortDate,
-  getActiveCutoff,
-  incomeByPerson,
-  incomePersonForExpense,
-  incomesForCutoff,
-  plannedByGroup,
-  plannedUpToDate,
-  protectedSavings,
-  recommendedDailyBudget,
-  reservedMoney,
-  safeToSpend,
-  savingsProgress,
-  spendableBudget,
-  totalAllocation,
-  toDate,
-  totalIncome,
-  totalSavings,
-  unallocatedMoney,
-  upcomingBills,
-  usagePercentage
-} from "@/src/utils/finance";
-import { Button, EmptyState, Field, Modal, MoneyDisplay, PageHeader, Panel, ProgressBar, StatusBadge, SummaryCard, cn, inputClass } from "@/src/components/ui";
+import type { Bill, Debt, Expense, PaymentMethod, WishlistItem } from "@/src/types/budget";
+import { walletBalance, actualSpend, billStatus, buildTransactions, debtProgress, formatCurrency, formatShortDate, getActiveCutoff, savingsProgress, totalIncome, totalSavings, upcomingBills } from "@/src/utils/finance";
+import { Button, EmptyState, Field, MoneyDisplay, PageHeader, Panel, ProgressBar, StatusBadge, SummaryCard, cn, inputClass } from "@/src/components/ui";
 
-type Tone = "neutral" | "success" | "warning" | "danger" | "accent";
-
-const paymentMethods: PaymentMethod[] = ["Cash", "GCash", "Maya", "Bank Transfer", "Debit Card", "Credit Card", "Other"];
-const salaryAllocationCategories = ["Bills", "Transpo", "Gas", "Family", "Daily Budget", "Pocket Money"];
-const incomeSourceOptions = ["Salary", "Pag-IBIG Loan", "SSS Loan", "Commission", "Freelance", "Other"];
-const expenseFallbackCategories = ["Food", "Gas", "Parking", "Bills", "Monthly Bills", "Debt Payments", "Family Share", "Shopping", "Planned Purchases", "Personal", "Transportation", "Medical", "Entertainment", "Others"];
 const chartColors = ["#6c63f6", "#2cc5a7", "#f5bd3d", "#ef5d7a", "#2f3654", "#a8a1ff", "#c7c2ff", "#7b70ff", "#d9d6ff", "#f0b6c7", "#9aa3b2"];
 
 function getString(form: FormData, key: string) {
@@ -139,89 +35,10 @@ function sum(values: number[]) {
 }
 
 function useActiveFinance() {
-  const { state, actions, sync } = useBudget();
-  return useMemo(() => {
-    const cutoff = getActiveCutoff(state);
-    const categories = categoriesForCutoff(state, cutoff.id);
-    const incomes = incomesForCutoff(state, cutoff.id);
-    const expenses = expensesForCutoff(state, cutoff.id);
-    const dailyPlans = dailyPlansForCutoff(state, cutoff.id);
-    const bills = state.bills.filter((bill) => bill.assignedCutoffId === cutoff.id);
-    const debts = state.debts.filter((debt) => debt.assignedCutoffId === cutoff.id);
-    const debtPayments = state.debtPayments.filter((payment) => payment.cutoffId === cutoff.id);
-    const savingsTransactions = state.savingsTransactions.filter((transaction) => transaction.cutoffId === cutoff.id);
-    const familyShares = state.familyShares.filter((item) => item.cutoffId === cutoff.id);
-    const incomeTotal = totalIncome(incomes);
-    const allocated = totalAllocation(categories);
-    const spending = actualSpend(expenses);
-    const debtPaid = sum(debtPayments.map((payment) => payment.amount));
-    const savingsMoved = sum(savingsTransactions.filter((transaction) => transaction.type === "Contribution").map((transaction) => transaction.amount));
-    const outflows = spending + debtPaid + savingsMoved;
-    const spendable = spendableBudget(categories);
-    const safe = safeToSpend(spendable, dailyPlans, expenses, state.profile.demoToday);
-    const recommended = recommendedDailyBudget(spendable, expenses, cutoff, state.profile.demoToday);
-    return {
-      state,
-      actions,
-      sync,
-      cutoff,
-      categories,
-      incomes,
-      expenses,
-      dailyPlans,
-      bills,
-      debts,
-      debtPayments,
-      savingsTransactions,
-      familyShares,
-      incomeTotal,
-      allocated,
-      spending,
-      debtPaid,
-      savingsMoved,
-      outflows,
-      spendable,
-      safe,
-      recommended
-    };
-  }, [state, actions, sync]);
-}
-
-function categoryNames(categories: BudgetCategory[]) {
-  return Array.from(new Set([...categories.map((category) => category.name), ...expenseFallbackCategories]));
-}
-
-function incomeTypeForSource(source: string): Income["type"] {
-  if (source === "Pag-IBIG Loan" || source === "SSS Loan") return "Government Loan";
-  if (source === "Commission") return "Commission";
-  if (source === "Freelance") return "Freelance";
-  if (source === "Salary") return "Salary";
-  return "Other";
-}
-
-function isSalaryIncomeRecord(income: Income) {
-  return income.type === "Salary" || income.source === "Salary";
-}
-
-function dayCountBetween(startDate: string, endDate: string) {
-  const start = toDate(startDate).getTime();
-  const end = toDate(endDate).getTime();
-  return Math.max(1, Math.ceil((end - start) / 86400000));
-}
-
-function currentSalaryCycle(state: ReturnType<typeof useBudget>["state"], paidBy: Expense["paidBy"]) {
-  const salaryRecords = state.incomes.filter((income) => isSalaryIncomeRecord(income) && income.person === incomePersonForExpense(paidBy)).sort((a, b) => b.date.localeCompare(a.date) || b.id.localeCompare(a.id));
-  const salary = salaryRecords[0];
-  if (!salary) return null;
-  const ascending = [...salaryRecords].reverse();
-  const salaryIndex = ascending.findIndex((income) => income.id === salary.id);
-  const nextSalary = salaryIndex >= 0 ? ascending[salaryIndex + 1] : undefined;
-  const allocations = state.salaryAllocations.filter((allocation) => allocation.incomeId === salary.id);
-  const allocated = allocations.reduce((total, allocation) => total + allocation.amount, 0);
-  const expenses = expensesForSalaryPeriod(state, salary, nextSalary);
-  const spent = actualSpend(expenses);
-  const remaining = salary.amount - allocated - spent;
-  return { salary, nextSalary, allocations, allocated, spent, remaining };
+  const { state, actions } = useBudget();
+  const cutoff = getActiveCutoff(state);
+  const debtPaid = sum(state.debtPayments.filter(payment => payment.cutoffId === cutoff.id).map(payment => payment.amount));
+  return { state, actions, cutoff, debtPaid };
 }
 
 export default function BudgetApp() {
@@ -264,7 +81,15 @@ function AppShell() {
   const location = useLocation();
   const showBack = location.pathname !== "/";
   return (
-    <div className="min-h-screen bg-[#f1f3f4] text-slate-900">
+    <div
+      className="min-h-screen bg-[#f1f3f4] text-slate-900"
+      onWheelCapture={(event) => {
+        // Release number inputs before the browser can step their value on scroll.
+        if (event.target instanceof HTMLInputElement && event.target.type === "number") {
+          event.target.blur();
+        }
+      }}
+    >
       <div className="mx-auto flex min-h-screen w-full max-w-6xl flex-col px-4 py-5 md:px-6 md:py-6">
         <header className="flex flex-col gap-3 rounded-lg border border-slate-200 bg-white px-4 py-3 shadow-sm sm:flex-row sm:items-center sm:justify-between">
           <NavLink to="/" className="flex min-w-0 items-center gap-3">
@@ -286,18 +111,15 @@ function AppShell() {
           <Routes>
             <Route path="/" element={<ActionHomePage />} />
             <Route path="/dashboard" element={<DashboardPage />} />
-            <Route path="/budget" element={<CutoffBudgetPage />} />
-            <Route path="/daily" element={<DailyBudgetPage />} />
-            <Route path="/income" element={<IncomePage />} />
-            <Route path="/expenses" element={<ExpensesPage />} />
+            <Route path="/income" element={<MoneyInWorkflow />} />
+            <Route path="/expenses" element={<TodayExpenses />} />
+            <Route path="/expense-history" element={<ExpensesPage />} />
             <Route path="/bills" element={<BillsPage />} />
             <Route path="/debts" element={<DebtsPage />} />
-            <Route path="/savings" element={<SavingsPage />} />
             <Route path="/wishlist" element={<WishlistPage />} />
-            <Route path="/family" element={<FamilySharePage />} />
-            <Route path="/reports" element={<ReportsPage />} />
             <Route path="/transactions" element={<TransactionHistoryPage />} />
             <Route path="/settings" element={<SettingsPage />} />
+            <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </main>
       </div>
@@ -316,11 +138,8 @@ function ActionHomePage() {
           <p className="mt-2 text-sm leading-6 text-slate-600">{data.state.profile.husbandName} and {data.state.profile.wifeName}</p>
         </div>
         <div className="grid gap-3 p-6 sm:grid-cols-2">
-          <HomeActionLink to="/expenses" label="Money Out" icon={Receipt} tone="danger" />
+          <HomeActionLink to="/expenses" label="Todays Expense" icon={Receipt} tone="danger" />
           <HomeActionLink to="/income" label="Money In" icon={PhilippinePeso} tone="success" />
-          <HomeActionLink to="/savings" label="Record Savings" icon={PiggyBank} tone="success" className="sm:col-span-2" />
-          <HomeActionLink to="/savings?transfer=1" label="Transfer Savings to Wallet" icon={ArrowUp} tone="accent" className="sm:col-span-2" />
-          <HomeActionLink to="/bills" label="Monthly Bills" icon={CalendarDays} tone="accent" className="sm:col-span-2" />
           <HomeActionLink to="/dashboard" label="Dashboard" icon={LayoutDashboard} tone="accent" className="sm:col-span-2" />
         </div>
       </section>
@@ -355,222 +174,26 @@ function DashboardPage() {
   const { state } = useBudget();
   const balance = sum((["Ruru", "Joselle"] as const).flatMap(person => walletMethods.map(method => walletBalance(state, person, method))));
   return <div className="mx-auto grid max-w-4xl gap-4">
-    <PageHeader title="Dashboard" description="Track money in, money out, personal wallets, and savings." />
+    <PageHeader title="Financial Summary" description="Track income, spending, wallets, and savings." actions={<NavLink to="/settings" className="rounded-md border bg-white px-4 py-2 text-sm font-semibold text-violet-700">Settings</NavLink>} />
     <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
       <SummaryCard label="Money In" value={formatCurrency(totalIncome(state.incomes))} icon={TrendingUp} tone="success" />
       <SummaryCard label="Money Out" value={formatCurrency(actualSpend(state.expenses))} icon={TrendingDown} tone="danger" />
       <SummaryCard label="Wallet Balance" value={formatCurrency(balance)} icon={Wallet} />
       <SummaryCard label="Savings" value={formatCurrency(totalSavings(state))} icon={PiggyBank} tone="accent" />
     </div>
+    <div className="grid gap-4 md:grid-cols-2"><ChartPanel title="Income and expenses by month"><ResponsiveContainer width="100%" height={260}><BarChart data={Array.from(new Set([...state.incomes.map(i=>i.date.slice(0,7)),...state.expenses.map(e=>e.date.slice(0,7))])).sort().slice(-6).map(month=>({month,income:sum(state.incomes.filter(i=>i.date.startsWith(month)).map(i=>i.amount)),expenses:sum(state.expenses.filter(e=>e.date.startsWith(month)).map(e=>e.amount))}))}><CartesianGrid strokeDasharray="3 3"/><XAxis dataKey="month"/><YAxis/><Tooltip formatter={v=>formatCurrency(Number(v))}/><Bar dataKey="income" name="Income" fill="#6c63f6"/><Bar dataKey="expenses" name="Expenses" fill="#ef5d7a"/></BarChart></ResponsiveContainer></ChartPanel><ChartPanel title="Spending by expense type"><ResponsiveContainer width="100%" height={260}><PieChart><Pie data={Array.from(new Set(state.expenses.map(e=>e.category))).map(name=>({name,value:sum(state.expenses.filter(e=>e.category===name).map(e=>e.amount))}))} dataKey="value" nameKey="name" innerRadius={45} outerRadius={85} label>{Array.from(new Set(state.expenses.map(e=>e.category))).map((name,i)=><Cell key={name} fill={chartColors[i%chartColors.length]}/>)}</Pie><Tooltip formatter={v=>formatCurrency(Number(v))}/></PieChart></ResponsiveContainer>{!state.expenses.length&&<p className="text-sm text-slate-500">Record expenses to see the breakdown.</p>}</ChartPanel></div>
     <WalletBalances />
     <Panel><h2 className="text-lg font-semibold">Recent activity</h2><div className="mt-4 grid gap-2">{buildTransactions(state).slice(0,12).map(t => <LedgerRow key={t.id} left={t.description} meta={formatShortDate(t.date) + " | " + t.type + " | " + t.person} amount={t.amount} />)}{!buildTransactions(state).length ? <EmptyState title="No activity yet" description="Start by recording Money In." /> : null}</div><NavLink to="/transactions" className="mt-4 inline-block text-sm font-semibold text-violet-700">View all activity</NavLink></Panel>
   </div>;
-}
-
-function SalaryAllocationForm({ salary }: { salary: Income }) {
-  const data = useActiveFinance();
-  const categories = categoryNames(data.state.budgetCategories);
-  const submit = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    const form = new FormData(event.currentTarget);
-    data.actions.setSalaryAllocation(salary.id, getString(form, "category"), getNumber(form, "amount"));
-    event.currentTarget.reset();
-  };
-  return (
-    <form className="mt-5 grid gap-3 rounded-lg border border-slate-200 bg-slate-50 p-4 md:grid-cols-[1fr_180px_auto] md:items-end" onSubmit={submit}>
-      <Field label="Allocation category">
-        <select className={inputClass} name="category" defaultValue="Gas">{categories.map((category) => <option key={category}>{category}</option>)}</select>
-      </Field>
-      <Field label="Amount">
-        <input className={inputClass} name="amount" type="number" min="0.01" step="0.01" required placeholder="0.00" />
-      </Field>
-      <Button type="submit"><Plus size={17} /> Allocate</Button>
-    </form>
-  );
-}
-
-function SalaryAllocationRow({ salary, allocation }: { salary: Income; allocation: SalaryAllocation }) {
-  const data = useActiveFinance();
-  return (
-    <div className="grid gap-3 rounded-lg border border-slate-200 p-3 md:grid-cols-[1fr_180px_auto] md:items-center">
-      <p className="font-semibold text-slate-900">{allocation.category}</p>
-      <input className={inputClass} type="number" min="0" step="0.01" value={allocation.amount} onChange={(event) => data.actions.setSalaryAllocation(salary.id, allocation.category, Number(event.target.value))} aria-label={allocation.category + " allocation amount"} />
-      <Button variant="ghost" onClick={() => data.actions.setSalaryAllocation(salary.id, allocation.category, 0)} title="Remove allocation"><Trash2 size={16} /></Button>
-    </div>
-  );
-}
-
-function TodayMetric({ label, value, helper }: { label: string; value: number; helper?: string }) {
-  return (
-    <div className="rounded-lg border border-[#d8d3ff] bg-[#f8f7ff] p-4">
-      <p className="text-sm text-slate-500">{label}</p>
-      <p className="mt-2 text-xl font-semibold"><MoneyDisplay value={value} /></p>
-      {helper ? <p className="text-sm text-slate-500">{helper}</p> : null}
-    </div>
-  );
 }
 
 function MoneyRow({ label, value, strong }: { label: string; value: number; strong?: boolean }) {
   return <div className={cn("flex items-center justify-between gap-4", strong && "border-t border-slate-200 pt-3 font-semibold")}><span>{label}</span><MoneyDisplay value={value} /></div>;
 }
 
-function BudgetCategoryRow({ category, actual, health }: { category: BudgetCategory; actual: number; health: { label: string; tone: Tone } }) {
-  const remaining = category.planned - actual;
-  const used = usagePercentage(actual, category.planned);
-  return (
-    <div className="rounded-lg border border-slate-200 p-3">
-      <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-        <div>
-          <p className="font-semibold">{category.name}</p>
-          <p className="text-sm text-slate-500">Budget <MoneyDisplay value={category.planned} /> | Spent <MoneyDisplay value={actual} /> | Remaining <MoneyDisplay value={remaining} /></p>
-        </div>
-        <StatusBadge label={actual > category.planned ? "Over by " + formatCurrency(Math.abs(remaining)) : health.label} tone={health.tone} />
-      </div>
-      <div className="mt-3 flex items-center gap-3">
-        <ProgressBar value={used} tone={health.tone === "danger" ? "danger" : health.tone === "warning" ? "warning" : "success"} />
-        <span className="w-16 text-right text-sm font-semibold text-slate-600">{used.toFixed(0)}%</span>
-      </div>
-    </div>
-  );
-}
-
-function CutoffBudgetPage() {
-  const data = useActiveFinance();
-  const [categoryName, setCategoryName] = useState("");
-  const [categoryAmount, setCategoryAmount] = useState(0);
-  const unallocated = unallocatedMoney(data.incomeTotal, data.categories);
-  const addCustomCategory = () => {
-    if (!categoryName.trim() || categoryAmount <= 0) return;
-    data.actions.addCategory({ name: categoryName.trim(), planned: categoryAmount, group: "custom", cutoffId: data.cutoff.id });
-    setCategoryName("");
-    setCategoryAmount(0);
-  };
-  return (
-    <div className="grid gap-6">
-      <PageHeader title="Cutoff Budget" description="Record your actual take-home income for this cutoff first, then allocate it. This supports taxes, deductions, bonuses, and changing pay." actions={<Button variant="secondary" onClick={data.actions.copyPreviousBudget}><Clock size={17} /> Copy Previous Cutoff Budget</Button>} />
-      <div className="grid gap-4 md:grid-cols-4">
-        <SummaryCard label="Ruru Income" value={formatCurrency(incomeByPerson(data.state.incomes, "Husband"))} helper="Recorded this cutoff" icon={PhilippinePeso} />
-        <SummaryCard label="Joselle Income" value={formatCurrency(incomeByPerson(data.state.incomes, "Wife"))} helper="Recorded this cutoff" icon={PhilippinePeso} />
-        <SummaryCard label="Additional Income" value={formatCurrency(incomeByPerson(data.state.incomes, "Shared"))} helper="Shared or other income" icon={Plus} />
-        <SummaryCard label="Combined Income" value={formatCurrency(totalIncome(data.state.incomes))} helper="Total money received" icon={Wallet} tone="accent" />
-      </div>
-      <Panel>
-        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-          <div>
-            <h2 className="text-lg font-semibold">Allocation Formula</h2>
-            <p className="text-sm text-slate-500">Combined income minus all allocations equals unallocated money.</p>
-          </div>
-          <StatusBadge label={unallocated >= 0 ? formatCurrency(unallocated) + " available to allocate" : "Budget exceeded by " + formatCurrency(Math.abs(unallocated))} tone={unallocated >= 0 ? "success" : "danger"} />
-        </div>
-        <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-          {data.categories.map((category) => (
-            <div key={category.id} className="rounded-lg border border-slate-200 p-3">
-              <Field label={category.name} hint={category.group === "reserved" ? "Reserved money" : category.group === "savings" ? "Protected savings" : "Spendable allocation"}>
-                <input className={inputClass} type="number" min="0" step="0.01" value={category.planned} onChange={(event) => data.actions.updateCategory({ ...category, planned: Number(event.target.value) })} />
-              </Field>
-              <div className="mt-3 flex items-center justify-between gap-2">
-                <select className={cn(inputClass, "min-h-9 py-1 text-xs")} value={category.group} onChange={(event) => data.actions.updateCategory({ ...category, group: event.target.value as BudgetCategory["group"] })}>
-                  <option value="reserved">Reserved</option>
-                  <option value="spendable">Spendable</option>
-                  <option value="savings">Savings</option>
-                  <option value="personal">Personal</option>
-                  <option value="custom">Custom</option>
-                </select>
-                {!category.locked ? <Button variant="ghost" onClick={() => data.actions.deleteCategory(category.id)} title="Delete category"><Trash2 size={16} /></Button> : null}
-              </div>
-            </div>
-          ))}
-        </div>
-      </Panel>
-      <Panel>
-        <h2 className="text-lg font-semibold">Custom Budget Category</h2>
-        <div className="mt-4 grid gap-3 md:grid-cols-[1fr_180px_auto]">
-          <input className={inputClass} value={categoryName} onChange={(event) => setCategoryName(event.target.value)} placeholder="Category name" />
-          <input className={inputClass} type="number" min="0.01" step="0.01" value={categoryAmount || ""} onChange={(event) => setCategoryAmount(Number(event.target.value))} placeholder="Amount" />
-          <Button onClick={addCustomCategory}><Plus size={17} /> Add Category</Button>
-        </div>
-      </Panel>
-    </div>
-  );
-}
-
-function DailyBudgetPage() {
-  const data = useActiveFinance();
-  const [view, setView] = useState<"list" | "calendar">("list");
-  const [selectedDay, setSelectedDay] = useState<string | null>(null);
-  const totalDailyPlan = sum(data.dailyPlans.map((day) => day.planned));
-  const selectedPlan = data.dailyPlans.find((day) => day.date === selectedDay);
-  const selectedExpenses = data.expenses.filter((expense) => expense.date === selectedDay);
-  return (
-    <div className="grid gap-6">
-      <PageHeader title="Daily Budget Plan" description="Plan each day in the cutoff, compare actual spending, and recover from overages before payday." actions={<><Button variant="secondary" onClick={data.actions.generateEqualDailyPlan}><Target size={17} /> Equal Daily Budget</Button><Button variant={view === "list" ? "primary" : "secondary"} onClick={() => setView("list")}><List size={17} /> List</Button><Button variant={view === "calendar" ? "primary" : "secondary"} onClick={() => setView("calendar")}><CalendarDays size={17} /> Calendar</Button></>} />
-      <div className="grid gap-4 md:grid-cols-4">
-        <SummaryCard label="Spendable Budget" value={formatCurrency(data.spendable)} helper="Available for daily spending" icon={Wallet} />
-        <SummaryCard label="Daily Plan Total" value={formatCurrency(totalDailyPlan)} helper={totalDailyPlan > data.spendable ? "Plan exceeds spendable budget" : "Within spendable budget"} icon={CalendarDays} tone={totalDailyPlan > data.spendable ? "danger" : "success"} />
-        <SummaryCard label="Actual So Far" value={formatCurrency(data.spending)} helper="Recorded expenses" icon={Receipt} />
-        <SummaryCard label="Smart Daily Budget" value={formatCurrency(data.recommended)} helper="Based on remaining spendable money" icon={TrendingDown} tone="accent" />
-      </div>
-      {totalDailyPlan > data.spendable ? <Panel className="border-amber-300 bg-amber-50"><p className="text-sm font-semibold text-amber-800">Warning: daily planned spending exceeds available spendable budget by {formatCurrency(totalDailyPlan - data.spendable)}.</p></Panel> : null}
-      <Panel>
-        <div className={view === "calendar" ? "grid gap-3 sm:grid-cols-2 xl:grid-cols-5" : "grid gap-3"}>
-          {data.dailyPlans.map((daily) => {
-            const actual = dailyActual(data.expenses, daily.date);
-            const diff = daily.planned - actual;
-            const status = dailyStatus(daily.planned, actual);
-            return (
-              <div key={daily.id} className="rounded-lg border border-slate-200 p-3">
-                <div className="flex items-start justify-between gap-3">
-                  <button className="text-left" onClick={() => setSelectedDay(daily.date)} type="button">
-                    <p className="font-semibold">{formatLongDate(daily.date)}</p>
-                    <p className="text-sm text-slate-500">{diff >= 0 ? formatCurrency(diff) + " under budget" : formatCurrency(Math.abs(diff)) + " over budget"}</p>
-                  </button>
-                  <StatusBadge label={status.label.replace("Comfortably ", "")} tone={status.tone} />
-                </div>
-                <div className="mt-3 grid gap-2 md:grid-cols-3">
-                  <Field label="Planned"><input className={inputClass} type="number" min="0" step="0.01" value={daily.planned} onChange={(event) => data.actions.setDailyPlan(daily.date, Number(event.target.value))} /></Field>
-                  <div><p className="text-sm font-medium text-slate-700">Actual</p><p className="mt-2 font-semibold"><MoneyDisplay value={actual} /></p></div>
-                  <div><p className="text-sm font-medium text-slate-700">Difference</p><p className={cn("mt-2 font-semibold", diff >= 0 ? "text-emerald-600" : "text-rose-600")}><MoneyDisplay value={Math.abs(diff)} /></p></div>
-                </div>
-                <div className="mt-3 flex items-center gap-2">
-                  <ProgressBar value={usagePercentage(actual, daily.planned)} tone={status.tone === "danger" ? "danger" : status.tone === "warning" ? "warning" : "success"} />
-                  {diff > 0 ? <Button variant="ghost" onClick={() => data.actions.carryForwardUnused(daily.date)}>Carry {formatCurrency(diff)} Forward</Button> : null}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </Panel>
-      {selectedPlan ? <Modal title={formatLongDate(selectedPlan.date)} onClose={() => setSelectedDay(null)}>
-        <div className="grid gap-4">
-          <div className="grid gap-3 md:grid-cols-3">
-            <SummaryCard label="Planned" value={formatCurrency(selectedPlan.planned)} icon={Calendar} />
-            <SummaryCard label="Actual" value={formatCurrency(dailyActual(data.expenses, selectedPlan.date))} icon={Receipt} />
-            <SummaryCard label="Difference" value={formatCurrency(Math.abs(selectedPlan.planned - dailyActual(data.expenses, selectedPlan.date)))} helper={selectedPlan.planned >= dailyActual(data.expenses, selectedPlan.date) ? "under budget" : "over budget"} icon={TrendingUp} tone={selectedPlan.planned >= dailyActual(data.expenses, selectedPlan.date) ? "success" : "danger"} />
-          </div>
-          <div className="grid gap-2">
-            {selectedPlan.categoryPlans.length ? selectedPlan.categoryPlans.map((plan) => {
-              const category = data.categories.find((item) => item.id === plan.categoryId);
-              const actual = category ? sum(selectedExpenses.filter((expense) => expense.category === category.name).map((expense) => expense.amount)) : 0;
-              return <MoneyRow key={plan.categoryId} label={(category?.name || "Category") + " planned vs actual"} value={plan.planned - actual} />;
-            }) : <p className="text-sm text-slate-500">No category-level plans set for this day.</p>}
-          </div>
-          <div>
-            <h3 className="font-semibold">Transactions</h3>
-            <div className="mt-3 grid gap-2">
-              {selectedExpenses.length ? selectedExpenses.map((expense) => <LedgerRow key={expense.id} left={expense.name} meta={expense.category + " | " + expense.paymentMethod} amount={expense.amount} />) : <EmptyState title="No spending recorded" description="Add an expense to update this day automatically." />}
-            </div>
-          </div>
-          {selectedPlan.planned < dailyActual(data.expenses, selectedPlan.date) ? <Panel className="bg-rose-50"><p className="text-sm text-rose-800">You overspent by {formatCurrency(dailyActual(data.expenses, selectedPlan.date) - selectedPlan.planned)}. Reduce average spending by around {formatCurrency((dailyActual(data.expenses, selectedPlan.date) - selectedPlan.planned) / Math.max(1, data.dailyPlans.filter((day) => day.date > selectedPlan.date).length))} for the remaining days to stay within your cutoff budget.</p></Panel> : null}
-        </div>
-      </Modal> : null}
-    </div>
-  );
-}
-
 function LedgerRow({ left, meta, amount, action }: { left: string; meta: string; amount: number; action?: React.ReactNode }) {
   return <div className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 p-3"><div><p className="font-semibold">{left}</p><p className="text-sm text-slate-500">{meta}</p></div><div className="flex items-center gap-2"><p className="font-semibold"><MoneyDisplay value={amount} /></p>{action}</div></div>;
 }
-
 
 const walletMethods = ["Cash", "GCash", "Maya", "BDO", "GoTyme"] as const;
 
@@ -587,193 +210,9 @@ function WalletBalances() {
   return <Panel><h2 className="text-lg font-semibold">Your wallets</h2><div className="mt-4 grid gap-4 sm:grid-cols-2">{(["Ruru", "Joselle"] as const).map(person => <div key={person}><h3 className="mb-2 font-semibold">{person}</h3>{walletMethods.map(method => <MoneyRow key={method} label={method} value={walletBalance(state, person, method)} />)}</div>)}</div>{state.incomes.some(i => !i.paymentMethod) ? <p className="mt-3 text-sm text-slate-500">Older income without a payment source is not assigned to a wallet.</p> : null}</Panel>;
 }
 
-function IncomePage() {
-  return (
-    <div className="mx-auto grid w-full max-w-2xl gap-4">
-      <section className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
-        <div className="h-2 bg-[#673ab7]" />
-        <div className="px-6 py-5">
-          <h1 className="text-2xl font-normal text-slate-950">Money In</h1>
-          <p className="mt-2 text-sm leading-6 text-slate-600">Record money coming in.</p>
-        </div>
-      </section>
-      <IncomeForm onDone={() => undefined} />
-    </div>
-  );
-}
-
-function IncomeForm({ initial, onDone }: { initial?: Income | null; onDone: () => void }) {
-  const data = useActiveFinance();
-  const sources = initial?.source && !incomeSourceOptions.includes(initial.source) ? [initial.source, ...incomeSourceOptions] : incomeSourceOptions;
-  const [saveNotice, setSaveNotice] = useState("");
-  const [allocationError, setAllocationError] = useState("");
-  const [selectedSource, setSelectedSource] = useState(initial?.source || "Salary");
-  const [selectedPerson, setSelectedPerson] = useState<Income["person"]>(initial?.person || "Husband");
-  const submit = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    const form = new FormData(event.currentTarget);
-    const source = getString(form, "source");
-    const payload: Omit<Income, "id"> = {
-      source,
-      person: selectedPerson,
-      paymentMethod: getString(form, "paymentMethod") as PaymentMethod,
-      amount: getNumber(form, "amount"),
-      date: getString(form, "date"),
-      cutoffId: data.cutoff.id,
-      type: incomeTypeForSource(source),
-      notes: getString(form, "notes")
-    };
-    const allocations = source === "Salary"
-      ? salaryAllocationCategories.map((category) => ({ category, amount: getNumber(form, "allocation-" + category) }))
-      : [];
-    const otherAllocated = initial ? sum(data.state.salaryAllocations.filter((allocation) => allocation.incomeId === initial.id && !salaryAllocationCategories.includes(allocation.category)).map((allocation) => allocation.amount)) : 0;
-    if (source === "Salary" && Math.round((sum(allocations.map((allocation) => allocation.amount)) + otherAllocated) * 100) > Math.round(payload.amount * 100)) {
-      setAllocationError("Total allocations cannot exceed the salary amount.");
-      return;
-    }
-    const incomeId = initial ? initial.id : data.actions.addIncome(payload);
-    if (initial) data.actions.updateIncome({ ...payload, id: incomeId });
-    allocations.forEach(({ category, amount }) => data.actions.setSalaryAllocation(incomeId, category, amount));
-    setAllocationError("");
-    event.currentTarget.reset();
-    setSelectedSource(initial?.source || "Salary");
-    setSelectedPerson(initial?.person || "Husband");
-    setSaveNotice(initial ? "Income changes have been saved." : "Income has been recorded.");
-    onDone();
-  };
-  return (
-    <>
-      <form className="grid gap-4" onSubmit={submit}>
-        <FormQuestion label="Whose money is coming in?">
-          <select className={cn(inputClass, "w-full")} name="person" value={selectedPerson} onChange={(event) => setSelectedPerson(event.target.value as Income["person"])} required><option value="Husband">Ruru</option><option value="Wife">Joselle</option>{initial?.person === "Shared" ? <option value="Shared">Shared Money (legacy)</option> : null}</select>
-        </FormQuestion>
-        <MoneyTypeFields initial={initial?.paymentMethod} />
-        <FormQuestion label="Income Source">
-          <select className={cn(inputClass, "w-full")} name="source" value={selectedSource} onChange={(event) => setSelectedSource(event.target.value)} required>{sources.map((source) => <option key={source}>{source}</option>)}</select>
-        </FormQuestion>
-        <FormQuestion label="Amount">
-          <input className={cn(inputClass, "w-full")} name="amount" required type="number" min="0.01" step="0.01" defaultValue={initial?.amount || ""} placeholder="0.00" />
-        </FormQuestion>
-        {selectedSource === "Salary" ? (
-          <FormQuestion label="Salary Allocation">
-            <p className="mb-3 text-sm text-slate-500">Set aside an amount for each category. Leave unused categories blank.</p>
-            <div className="grid gap-3 sm:grid-cols-2">
-              {salaryAllocationCategories.map((category) => (
-                <Field key={category} label={category}>
-                  <input className={cn(inputClass, "w-full")} name={"allocation-" + category} aria-label={category + " allocation"} type="number" min="0" step="0.01" placeholder="0.00" defaultValue={initial ? data.state.salaryAllocations.find((allocation) => allocation.incomeId === initial.id && allocation.category === category)?.amount ?? "" : ""} />
-                </Field>
-              ))}
-            </div>
-            {allocationError ? <p className="mt-3 text-sm text-rose-600" role="alert">{allocationError}</p> : null}
-          </FormQuestion>
-        ) : null}
-        <FormQuestion label="Date">
-          <input className={cn(inputClass, "w-full")} name="date" required type="date" defaultValue={initial?.date || todayInputValue()} />
-        </FormQuestion>
-        <FormQuestion label="Description">
-          <input className={cn(inputClass, "w-full")} name="notes" defaultValue={initial?.notes || ""} placeholder="Optional" />
-        </FormQuestion>
-        <div className="flex items-center gap-3 rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
-          <Button type="submit"><CheckCircle size={17} /> {initial ? "Save Income" : "Money In"}</Button>
-          {initial ? <Button variant="secondary" onClick={onDone}>Cancel</Button> : null}
-        </div>
-      </form>
-      {saveNotice ? <SaveSuccessPopup message={saveNotice} onClose={() => setSaveNotice("")} /> : null}
-    </>
-  );
-}
-
 function ExpensesPage() {
-  const data = useActiveFinance();
-  const [paidBy, setPaidBy] = useState<Expense["paidBy"]>("Ruru");
-
-  return (
-    <div className="mx-auto grid w-full max-w-2xl gap-4">
-      <section className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
-        <div className="h-2 bg-[#673ab7]" />
-        <div className="px-6 py-5">
-          <h1 className="text-2xl font-normal text-slate-950">Money Out</h1>
-          <p className="mt-2 text-sm leading-6 text-slate-600">Record money going out.</p>
-        </div>
-      </section>
-      <WalletBalances />
-      <ExpenseForm paidBy={paidBy} onPaidByChange={setPaidBy} onDone={() => undefined} />
-    </div>
-  );
-}
-
-function ExpenseForm({ initial, onDone, paidBy, onPaidByChange }: { initial?: Expense | null; onDone: () => void; paidBy?: Expense["paidBy"]; onPaidByChange?: (person: Expense["paidBy"]) => void }) {
-  const data = useActiveFinance();
-  const names = categoryNames(data.categories);
-  const [saveNotice, setSaveNotice] = useState("");
-  const submit = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    const form = new FormData(event.currentTarget);
-    const category = getString(form, "category");
-    const payload: Omit<Expense, "id"> = {
-      name: getString(form, "name"),
-      amount: getNumber(form, "amount"),
-      category,
-      paidBy: getString(form, "paidBy") as Expense["paidBy"],
-      date: getString(form, "date"),
-      paymentMethod: getString(form, "paymentMethod") as PaymentMethod,
-      cutoffId: data.cutoff.id,
-      notes: ""
-    };
-    if (initial) data.actions.updateExpense({ ...payload, id: initial.id, billId: initial.billId, wishlistItemId: initial.wishlistItemId }); else data.actions.addExpense(payload);
-    event.currentTarget.reset();
-    setSaveNotice(initial ? "Expense changes have been saved." : "Expense has been recorded.");
-    onDone();
-  };
-  return (
-    <>
-      <form className="grid gap-4" onSubmit={submit}>
-        <FormQuestion label="Whose money is going out?">
-          <select className={cn(inputClass, "w-full")} name="paidBy" value={paidBy} defaultValue={paidBy === undefined ? initial?.paidBy || "Ruru" : undefined} onChange={(event) => onPaidByChange?.(event.target.value as Expense["paidBy"])} required><option value="Ruru">Ruru</option><option value="Joselle">Joselle</option>{initial?.paidBy === "Shared Money" ? <option value="Shared Money">Shared fund (legacy)</option> : null}</select>
-        </FormQuestion>
-        <MoneyTypeFields initial={initial?.paymentMethod} />
-        <FormQuestion label="Amount">
-          <input className={cn(inputClass, "w-full")} name="amount" required type="number" min="0.01" step="0.01" defaultValue={initial?.amount || ""} placeholder="0.00" />
-        </FormQuestion>
-        <FormQuestion label="Type of Expense">
-          <select className={cn(inputClass, "w-full")} name="category" defaultValue={initial?.category || "Parking"} required>{names.map((name) => <option key={name}>{name}</option>)}</select>
-        </FormQuestion>
-        <FormQuestion label="Date">
-          <input className={cn(inputClass, "w-full")} name="date" required type="date" defaultValue={initial?.date || todayInputValue()} />
-        </FormQuestion>
-        <FormQuestion label="Description">
-          <input className={cn(inputClass, "w-full")} name="name" required defaultValue={initial?.name || ""} placeholder="Parking, bills, groceries" />
-        </FormQuestion>
-        <div className="flex items-center gap-3 rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
-          <Button type="submit"><CheckCircle size={17} /> {initial ? "Save Expense" : "Money Out"}</Button>
-          {initial ? <Button variant="secondary" onClick={onDone}>Cancel</Button> : null}
-        </div>
-      </form>
-      {saveNotice ? <SaveSuccessPopup message={saveNotice} onClose={() => setSaveNotice("")} /> : null}
-    </>
-  );
-}
-
-function SaveSuccessPopup({ message, onClose }: { message: string; onClose: () => void }) {
-  useEffect(() => {
-    const timer = window.setTimeout(onClose, 2600);
-    return () => window.clearTimeout(timer);
-  }, [onClose]);
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/35 px-4 py-6" role="dialog" aria-modal="true" aria-labelledby="save-success-title" onClick={onClose}>
-      <div className="w-full max-w-sm rounded-lg border border-emerald-200 bg-white p-6 text-center shadow-xl" onClick={(event) => event.stopPropagation()}>
-        <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-emerald-100 text-emerald-700">
-          <CheckCircle size={28} />
-        </div>
-        <h2 id="save-success-title" className="mt-4 text-xl font-semibold text-slate-950">Successfully saved</h2>
-        <p className="mt-2 text-sm leading-6 text-slate-600">{message}</p>
-        <button type="button" className="mt-5 inline-flex min-h-10 items-center justify-center rounded-md bg-[#673ab7] px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-[#5b32a3] focus:outline-none focus:ring-2 focus:ring-[#673ab7]/30" onClick={onClose}>
-          OK
-        </button>
-      </div>
-    </div>
-  );
+ const { state, actions } = useBudget();
+ return <div className="mx-auto grid max-w-4xl gap-4"><PageHeader title="Expense history" description="Review expenses recorded through Todays Expense." actions={<NavLink to="/expenses" className="text-sm font-semibold text-violet-700">Record expenses</NavLink>}/><Panel><div className="grid gap-3">{[...state.expenses].sort((a,b)=>b.date.localeCompare(a.date)).map(expense=><LedgerRow key={expense.id} left={expense.name} meta={[expense.payeeName,formatShortDate(expense.date),expense.category,expense.paidBy,expense.paymentMethod].filter(Boolean).join(" | ")} amount={expense.amount} action={<Button variant="ghost" onClick={()=>actions.deleteExpense(expense.id)} title="Delete expense"><Trash2 size={16}/></Button>}/>)}{!state.expenses.length&&<EmptyState title="No expenses yet" description="Record an expense to see it here."/>}</div></Panel></div>;
 }
 
 function FormQuestion({ label, children }: { label: string; children: React.ReactNode }) {
@@ -836,9 +275,9 @@ function BillForm({ initial, onDone }: { initial?: Bill | null; onDone: () => vo
 function DebtsPage() {
   const data = useActiveFinance();
   const [editing, setEditing] = useState<Debt | null>(null);
-  const totalOriginal = sum(data.debts.map((debt) => debt.originalAmount));
-  const totalRemaining = sum(data.debts.map((debt) => debt.remainingBalance));
-  return <div className="grid gap-6"><PageHeader title="Debts" description="Plan debt payments, track remaining balances, and record actual payments." /><div className="grid gap-4 md:grid-cols-4"><SummaryCard label="Original Debt" value={formatCurrency(totalOriginal)} icon={CreditCard} /><SummaryCard label="Remaining Debt" value={formatCurrency(totalRemaining)} icon={Landmark} tone="warning" /><SummaryCard label="Total Paid" value={formatCurrency(totalOriginal - totalRemaining)} icon={TrendingDown} tone="success" /><SummaryCard label="Payments This Cutoff" value={formatCurrency(data.debtPaid)} icon={CheckCircle} /></div><Panel><DebtForm key={editing?.id || "new-debt"} initial={editing} onDone={() => setEditing(null)} /></Panel><Panel><div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">{data.debts.map((debt) => <div key={debt.id} className="rounded-lg border border-slate-200 p-4"><div className="flex items-start justify-between"><div><p className="font-semibold">{debt.name}</p><p className="text-sm text-slate-500">{debt.creditor} | Due {formatShortDate(debt.dueDate)}</p></div><StatusBadge label={debt.type} tone="accent" /></div><div className="mt-4 grid gap-2 text-sm"><MoneyRow label="Original" value={debt.originalAmount} /><MoneyRow label="Remaining" value={debt.remainingBalance} /><MoneyRow label="Planned Payment" value={debt.plannedPayment} /></div><div className="mt-3"><ProgressBar value={debtProgress(debt)} tone="success" /></div><p className="mt-2 text-sm text-slate-500">{debtProgress(debt).toFixed(0)}% paid</p><DebtPaymentForm debt={debt} /><div className="mt-3 flex gap-2"><Button variant="ghost" onClick={() => setEditing(debt)} title="Edit debt"><Pencil size={16} /></Button><Button variant="ghost" onClick={() => data.actions.deleteDebt(debt.id)} title="Delete debt"><Trash2 size={16} /></Button></div></div>)}</div></Panel></div>;
+  const totalOriginal = sum(data.state.debts.map((debt) => debt.originalAmount));
+  const totalRemaining = sum(data.state.debts.map((debt) => debt.remainingBalance));
+  return <div className="grid gap-6"><PageHeader title="Debt settings" description="Manage debts and monthly payment amounts for the salary workflow." /><div className="grid gap-4 md:grid-cols-4"><SummaryCard label="Original Debt" value={formatCurrency(totalOriginal)} icon={CreditCard} /><SummaryCard label="Remaining Debt" value={formatCurrency(totalRemaining)} icon={Landmark} tone="warning" /><SummaryCard label="Total Paid" value={formatCurrency(totalOriginal - totalRemaining)} icon={TrendingDown} tone="success" /><SummaryCard label="Payments This Cutoff" value={formatCurrency(data.debtPaid)} icon={CheckCircle} /></div><Panel><DebtForm key={editing?.id || "new-debt"} initial={editing} onDone={() => setEditing(null)} /></Panel><Panel><div className="grid gap-4">{data.state.debts.map((debt) => <div key={debt.id} className="rounded-lg border border-slate-200 p-4"><div className="flex items-start justify-between"><div><p className="font-semibold">{debt.name}</p><p className="text-sm text-slate-500">{debt.creditor} | Due {formatShortDate(debt.dueDate)}</p></div><StatusBadge label={debt.type} tone="accent" /></div><div className="mt-4 grid gap-2 text-sm"><MoneyRow label="Original" value={debt.originalAmount} /><MoneyRow label="Remaining" value={debt.remainingBalance} /><MoneyRow label="Planned Payment" value={debt.plannedPayment} /></div><div className="mt-3"><ProgressBar value={debtProgress(debt)} tone="success" /></div><p className="mt-2 text-sm text-slate-500">{debtProgress(debt).toFixed(0)}% paid</p><DebtAmortization debt={debt} payments={data.state.debtPayments} /><div className="mt-3 flex gap-2"><Button variant="ghost" onClick={() => setEditing(debt)} title="Edit debt"><Pencil size={16} /></Button><Button variant="ghost" onClick={() => data.actions.deleteDebt(debt.id)} title="Delete debt"><Trash2 size={16} /></Button></div></div>)}</div></Panel></div>;
 }
 
 function DebtForm({ initial, onDone }: { initial?: Debt | null; onDone: () => void }) {
@@ -846,98 +285,24 @@ function DebtForm({ initial, onDone }: { initial?: Debt | null; onDone: () => vo
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
-    const payload = { name: getString(form, "name"), creditor: getString(form, "creditor"), type: getString(form, "type") as Debt["type"], originalAmount: getNumber(form, "originalAmount"), remainingBalance: getNumber(form, "remainingBalance"), minimumPayment: getNumber(form, "minimumPayment"), plannedPayment: getNumber(form, "plannedPayment"), interestRate: getNumber(form, "interestRate"), dueDate: getString(form, "dueDate"), assignedCutoffId: data.cutoff.id, notes: getString(form, "notes") };
+    const payload = { name: getString(form, "name"), creditor: getString(form, "creditor"), type: getString(form, "type") as Debt["type"], originalAmount: getNumber(form, "originalAmount"), remainingBalance: getString(form, "remainingBalance") ? getNumber(form, "remainingBalance") : getNumber(form, "originalAmount"), minimumPayment: getNumber(form, "minimumPayment"), plannedPayment: getNumber(form, "plannedPayment"), interestRate: getNumber(form, "interestRate"), interestRatePeriod: getString(form, "interestRatePeriod") as "Annual" | "Monthly", dueDate: getString(form, "dueDate"), assignedCutoffId: initial?.assignedCutoffId || data.cutoff.id, notes: getString(form, "notes") };
     data.actions.upsertDebt(initial ? { ...payload, id: initial.id } : payload);
     event.currentTarget.reset();
     onDone();
   };
-  return <form className="grid gap-3 md:grid-cols-4" onSubmit={submit}><Field label="Debt Name"><input className={inputClass} name="name" required defaultValue={initial?.name || ""} /></Field><Field label="Creditor"><input className={inputClass} name="creditor" required defaultValue={initial?.creditor || ""} /></Field><Field label="Debt Type"><select className={inputClass} name="type" defaultValue={initial?.type || "Credit Card"}><option>Credit Card</option><option>Personal Loan</option><option>Car Loan</option><option>Home Loan</option><option>Installment</option><option>Borrowed Money</option><option>Other</option></select></Field><Field label="Original Amount"><input className={inputClass} name="originalAmount" type="number" min="0.01" step="0.01" required defaultValue={initial?.originalAmount || ""} /></Field><Field label="Remaining Balance"><input className={inputClass} name="remainingBalance" type="number" min="0" step="0.01" required defaultValue={initial?.remainingBalance || ""} /></Field><Field label="Minimum Payment"><input className={inputClass} name="minimumPayment" type="number" min="0" step="0.01" required defaultValue={initial?.minimumPayment || ""} /></Field><Field label="Planned Payment"><input className={inputClass} name="plannedPayment" type="number" min="0" step="0.01" required defaultValue={initial?.plannedPayment || ""} /></Field><Field label="Interest Rate"><input className={inputClass} name="interestRate" type="number" min="0" step="0.01" defaultValue={initial?.interestRate || 0} /></Field><Field label="Due Date"><input className={inputClass} name="dueDate" type="date" required defaultValue={initial?.dueDate || data.state.profile.demoToday} /></Field><Field label="Notes"><input className={inputClass} name="notes" defaultValue={initial?.notes || ""} /></Field><div className="md:col-span-4 flex gap-2"><Button type="submit"><CheckCircle size={17} /> {initial ? "Save Debt" : "Add Debt"}</Button>{initial ? <Button variant="secondary" onClick={onDone}>Cancel</Button> : null}</div></form>;
-}
-
-function DebtPaymentForm({ debt }: { debt: Debt }) {
-  const data = useActiveFinance();
-  const submit = (event: FormEvent<HTMLFormElement>) => { event.preventDefault(); const form = new FormData(event.currentTarget); data.actions.recordDebtPayment({ debtId: debt.id, amount: getNumber(form, "amount"), date: getString(form, "date"), paymentSource: getString(form, "paymentSource"), cutoffId: data.cutoff.id, notes: getString(form, "notes") }); event.currentTarget.reset(); };
-  return <form className="mt-4 grid gap-2" onSubmit={submit}><div className="grid gap-2 sm:grid-cols-2"><input className={inputClass} name="amount" type="number" min="0.01" step="0.01" placeholder="Payment amount" required /><input className={inputClass} name="date" type="date" defaultValue={todayInputValue()} required /></div><input className={inputClass} name="paymentSource" placeholder="Payment source" defaultValue="Shared Money" /><input className={inputClass} name="notes" placeholder="Notes" /><Button type="submit" variant="secondary"><Plus size={16} /> Record Payment</Button></form>;
-}
-
-function SavingsPage() {
-  const data = useActiveFinance();
-  const location = useLocation();
-  const [mode, setMode] = useState(location.search.includes("transfer=1") ? "Withdrawal" : "Contribution");
-  const [notice, setNotice] = useState("");
-  const [error, setError] = useState("");
-  const submit = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    const form = new FormData(event.currentTarget);
-    const amount = getNumber(form, "amount");
-    const person = getString(form, "person") as "Ruru" | "Joselle";
-    const paymentMethod = getString(form, "paymentMethod") as PaymentMethod;
-    const goalId = getString(form, "goalId") || undefined;
-    const available = mode === "Withdrawal" ? availableSavings(data.state, goalId) : walletBalance(data.state, person, paymentMethod);
-    if (!Number.isFinite(amount) || amount <= 0 || amount > available) { setError("Enter an amount up to " + formatCurrency(Math.max(0, available)) + " available in the selected source."); return; }
-    data.actions.addSavingsTransaction({ amount, person, paymentMethod, goalId, date: getString(form, "date"), type: mode as "Contribution" | "Withdrawal", cutoffId: data.cutoff.id, notes: getString(form, "notes") });
-    event.currentTarget.reset();
-    setError("");
-    setNotice(mode === "Withdrawal" ? "Savings transferred to " + person + " · " + paymentMethod + "." : "Money moved from your wallet into savings.");
-  };
-  return <div className="mx-auto grid max-w-3xl gap-4">
-    <PageHeader title="Savings" description="Move money into savings or transfer it back to a personal wallet." />
-    <SummaryCard label="Total Savings" value={formatCurrency(totalSavings(data.state))} icon={PiggyBank} tone="success" />
-    <div className="flex flex-wrap gap-2"><Button variant={mode === "Contribution" ? "primary" : "secondary"} onClick={() => { setMode("Contribution"); setError(""); }}>Record Savings</Button><Button variant={mode === "Withdrawal" ? "primary" : "secondary"} onClick={() => { setMode("Withdrawal"); setError(""); }}>Transfer Savings to Wallet</Button></div>
-    <form className="grid gap-4" onSubmit={submit}>
-      <FormQuestion label={mode === "Withdrawal" ? "Whose wallet receives the money?" : "Whose money are you saving?"}><select className={inputClass} name="person" required><option>Ruru</option><option>Joselle</option></select></FormQuestion>
-      <MoneyTypeFields />
-      <FormQuestion label={mode === "Withdrawal" ? "Transfer from savings" : "Save to"}><select className={inputClass} name="goalId"><option value="">General savings · {formatCurrency(availableSavings(data.state))}</option>{data.state.savingsGoals.map(g => <option key={g.id} value={g.id}>{g.name} · {formatCurrency(g.currentSavings)}</option>)}</select></FormQuestion>
-      <FormQuestion label="Amount"><input className={inputClass} name="amount" type="number" min="0.01" step="0.01" required /></FormQuestion>
-      <FormQuestion label="Date"><input className={inputClass} name="date" type="date" defaultValue={todayInputValue()} required /></FormQuestion>
-      <FormQuestion label="Notes (optional)"><input className={inputClass} name="notes" /></FormQuestion>
-      {error ? <p role="alert" className="text-sm text-rose-700">{error}</p> : null}
-      <Button type="submit"><PiggyBank size={17} />{mode === "Withdrawal" ? "Transfer to Wallet" : "Record Savings"}</Button>
-    </form>
-    <WalletBalances />
-    <Panel><h2 className="text-lg font-semibold">Savings History</h2><div className="mt-4 grid gap-2">{buildTransactions(data.state).filter(t => t.type.includes("Savings")).map(t => <LedgerRow key={t.id} left={t.description} meta={formatShortDate(t.date) + " | " + t.type + " | " + t.person} amount={t.type === "Savings Withdrawal" ? -t.amount : t.amount} />)}</div></Panel>
-    {notice ? <SaveSuccessPopup message={notice} onClose={() => setNotice("")} /> : null}
-  </div>;
+  return <form className="grid gap-3 md:grid-cols-4" onSubmit={submit}><Field label="Debt Name"><input className={inputClass} name="name" required defaultValue={initial?.name || ""} /></Field><Field label="Creditor"><input className={inputClass} name="creditor" required defaultValue={initial?.creditor || ""} /></Field><Field label="Debt Type"><select className={inputClass} name="type" defaultValue={initial?.type || "Credit Card"}><option>Credit Card</option><option>Personal Loan</option><option>Car Loan</option><option>Home Loan</option><option>Installment</option><option>Borrowed Money</option><option>Other</option></select></Field><Field label="Original Amount"><input className={inputClass} name="originalAmount" type="number" min="0.01" step="0.01" required defaultValue={initial?.originalAmount || ""} /></Field><Field label="Remaining Balance" hint="Leave blank to start with the original amount."><input className={inputClass} name="remainingBalance" type="number" min="0" step="0.01" defaultValue={initial?.remainingBalance ?? ""} /></Field><Field label="Monthly minimum payment"><input className={inputClass} name="minimumPayment" type="number" min="0" step="0.01" required defaultValue={initial?.minimumPayment || ""} /></Field><Field label="Preferred monthly payment"><input className={inputClass} name="plannedPayment" type="number" min="0" step="0.01" required defaultValue={initial?.plannedPayment || ""} /></Field><Field label="Interest rate (%)"><input className={inputClass} name="interestRate" type="number" min="0" step="0.01" defaultValue={initial?.interestRate || 0} /></Field><Field label="Rate period"><select className={inputClass} name="interestRatePeriod" defaultValue={initial?.interestRatePeriod || "Annual"}><option>Annual</option><option>Monthly</option></select></Field><Field label="First due date" hint="Repeats monthly on this day."><input className={inputClass} name="dueDate" type="date" required defaultValue={initial?.dueDate || todayInputValue()} /></Field><Field label="Notes"><input className={inputClass} name="notes" defaultValue={initial?.notes || ""} /></Field><div className="md:col-span-4 flex gap-2"><Button type="submit"><CheckCircle size={17} /> {initial ? "Save Debt" : "Add Debt"}</Button>{initial ? <Button variant="secondary" onClick={onDone}>Cancel</Button> : null}</div></form>;
 }
 
 function WishlistPage() {
   const data = useActiveFinance();
   const [editing, setEditing] = useState<WishlistItem | null>(null);
-  const selected = data.state.wishlistItems[0];
-  return <div className="grid gap-6"><PageHeader title="Planned Purchases / Wishlist" description="Compare planned cost, actual cost, and available cash before buying." /><Panel><WishlistForm key={editing?.id || "new-wish"} initial={editing} onDone={() => setEditing(null)} /></Panel>{selected ? <Panel><h2 className="text-lg font-semibold">Purchase Decision Card</h2><div className="mt-4 grid gap-3 md:grid-cols-3"><MoneyRow label="Item Cost" value={selected.estimatedCost} /><MoneyRow label="Available Cash" value={data.incomeTotal - data.outflows} /><MoneyRow label="Safe to Spend" value={data.safe} /></div><div className="mt-4"><StatusBadge label={data.safe >= selected.estimatedCost ? "Affordable Within Current Plan" : data.incomeTotal - data.outflows >= selected.estimatedCost ? "Warning" : "Not Recommended Within Current Budget"} tone={data.safe >= selected.estimatedCost ? "success" : data.incomeTotal - data.outflows >= selected.estimatedCost ? "warning" : "danger"} /></div><p className="mt-3 text-xs text-slate-500">This is a household budgeting signal, not professional financial advice.</p></Panel> : null}<div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">{data.state.wishlistItems.map((item) => <Panel key={item.id}><div className="flex items-start justify-between"><div><h2 className="font-semibold">{item.name}</h2><p className="text-sm text-slate-500">{item.priority} priority | {item.status}</p></div><ShoppingCart className="text-[#6c63f6]" size={22} /></div><div className="mt-4 grid gap-2 text-sm"><MoneyRow label="Estimated" value={item.estimatedCost} /><MoneyRow label="Saved" value={item.amountSaved} /><MoneyRow label="Per Cutoff" value={item.plannedContributionPerCutoff} />{item.actualCost ? <MoneyRow label={item.actualCost <= item.estimatedCost ? "Saved vs plan" : "Overspent vs plan"} value={Math.abs(item.estimatedCost - item.actualCost)} /> : null}</div><div className="mt-3"><ProgressBar value={savingsProgress(item.amountSaved, item.estimatedCost)} tone="accent" /></div><div className="mt-3 flex flex-wrap gap-2"><Button variant="secondary" onClick={() => data.actions.markWishlistPurchased(item.id, item.estimatedCost)} disabled={item.status === "Purchased"}><CheckCircle size={16} /> Mark Purchased</Button><Button variant="ghost" onClick={() => setEditing(item)} title="Edit item"><Pencil size={16} /></Button><Button variant="ghost" onClick={() => data.actions.deleteWishlistItem(item.id)} title="Delete item"><Trash2 size={16} /></Button></div></Panel>)}</div></div>;
+  return <div className="grid gap-6"><PageHeader title="Wishlist settings" description="Manage goals available in your salary allocation workflow." /><Panel><WishlistForm key={editing?.id || "new-wish"} initial={editing} onDone={() => setEditing(null)} /></Panel><div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">{data.state.wishlistItems.map((item) => <Panel key={item.id}><div className="flex items-start justify-between"><div><h2 className="font-semibold">{item.name}</h2><p className="text-sm text-slate-500">{item.priority} priority | {item.status}</p></div><ShoppingCart className="text-[#6c63f6]" size={22} /></div><div className="mt-4 grid gap-2 text-sm"><MoneyRow label="Estimated" value={item.estimatedCost} /><MoneyRow label="Saved" value={item.amountSaved} /><MoneyRow label="Per Cutoff" value={item.plannedContributionPerCutoff} />{item.actualCost ? <MoneyRow label={item.actualCost <= item.estimatedCost ? "Saved vs plan" : "Overspent vs plan"} value={Math.abs(item.estimatedCost - item.actualCost)} /> : null}</div><div className="mt-3"><ProgressBar value={savingsProgress(item.amountSaved, item.estimatedCost)} tone="accent" /></div><div className="mt-3 flex flex-wrap gap-2"><Button variant="secondary" onClick={() => data.actions.markWishlistPurchased(item.id, item.estimatedCost)} disabled={item.status === "Purchased"}><CheckCircle size={16} /> Mark Purchased</Button><Button variant="ghost" onClick={() => setEditing(item)} title="Edit item"><Pencil size={16} /></Button><Button variant="ghost" onClick={() => data.actions.deleteWishlistItem(item.id)} title="Delete item"><Trash2 size={16} /></Button></div></Panel>)}</div></div>;
 }
 
 function WishlistForm({ initial, onDone }: { initial?: WishlistItem | null; onDone: () => void }) {
   const data = useActiveFinance();
   const submit = (event: FormEvent<HTMLFormElement>) => { event.preventDefault(); const form = new FormData(event.currentTarget); const payload = { name: getString(form, "name"), estimatedCost: getNumber(form, "estimatedCost"), priority: getString(form, "priority") as WishlistItem["priority"], targetPurchaseDate: getString(form, "targetPurchaseDate"), amountSaved: getNumber(form, "amountSaved"), plannedContributionPerCutoff: getNumber(form, "plannedContributionPerCutoff"), status: getString(form, "status") as WishlistItem["status"], actualCost: getNumber(form, "actualCost") || undefined, notes: getString(form, "notes") }; data.actions.upsertWishlistItem(initial ? { ...payload, id: initial.id } : payload); event.currentTarget.reset(); onDone(); };
   return <form className="grid gap-3 md:grid-cols-4" onSubmit={submit}><Field label="Item Name"><input className={inputClass} name="name" required defaultValue={initial?.name || ""} /></Field><Field label="Estimated Cost"><input className={inputClass} name="estimatedCost" type="number" min="0.01" step="0.01" required defaultValue={initial?.estimatedCost || ""} /></Field><Field label="Priority"><select className={inputClass} name="priority" defaultValue={initial?.priority || "Medium"}><option>High</option><option>Medium</option><option>Low</option></select></Field><Field label="Target Date"><input className={inputClass} name="targetPurchaseDate" type="date" required defaultValue={initial?.targetPurchaseDate || data.cutoff.payday} /></Field><Field label="Amount Saved"><input className={inputClass} name="amountSaved" type="number" min="0" step="0.01" defaultValue={initial?.amountSaved || 0} /></Field><Field label="Contribution / Cutoff"><input className={inputClass} name="plannedContributionPerCutoff" type="number" min="0" step="0.01" defaultValue={initial?.plannedContributionPerCutoff || 0} /></Field><Field label="Status"><select className={inputClass} name="status" defaultValue={initial?.status || "Planning"}><option>Planning</option><option>Saving</option><option>Ready to Buy</option><option>Purchased</option><option>Cancelled</option></select></Field><Field label="Actual Cost"><input className={inputClass} name="actualCost" type="number" min="0" step="0.01" defaultValue={initial?.actualCost || ""} /></Field><Field label="Notes"><input className={inputClass} name="notes" defaultValue={initial?.notes || ""} /></Field><div className="md:col-span-3 flex gap-2"><Button type="submit"><CheckCircle size={17} /> {initial ? "Save Item" : "Add Item"}</Button>{initial ? <Button variant="secondary" onClick={onDone}>Cancel</Button> : null}</div></form>;
-}
-
-function FamilySharePage() {
-  const data = useActiveFinance();
-  const [editing, setEditing] = useState<FamilyShare | null>(null);
-  const personalCategories = data.categories.filter((category) => category.group === "personal");
-  const food = data.categories.find((category) => category.name === "Food");
-  const gas = data.categories.find((category) => category.name === "Gas");
-  const parking = data.categories.find((category) => category.name === "Parking");
-  return <div className="grid gap-6"><PageHeader title="Family Share" description="Track family support plus personal allowances, food, gas, and parking budget health." /><div className="grid gap-4 md:grid-cols-3">{personalCategories.map((category) => <SummaryCard key={category.id} label={category.name} value={formatCurrency(category.planned - categoryActual(data.expenses, category.name))} helper="Remaining personal money" icon={Heart} />)}{food ? <SummaryCard label="Daily Food Allowance" value={formatCurrency(Math.max(0, food.planned - categoryActual(data.expenses, food.name)) / daysRemaining(data.cutoff, data.state.profile.demoToday))} icon={Utensils} /> : null}{gas ? <SummaryCard label="Gas Remaining" value={formatCurrency(gas.planned - categoryActual(data.expenses, gas.name))} icon={Fuel} /> : null}{parking ? <SummaryCard label="Parking Remaining" value={formatCurrency(parking.planned - categoryActual(data.expenses, parking.name))} icon={Car} /> : null}</div><Panel><FamilyForm key={editing?.id || "new-family"} initial={editing} onDone={() => setEditing(null)} /></Panel><Panel><h2 className="text-lg font-semibold">Family Contributions</h2><div className="mt-4 grid gap-2">{data.familyShares.map((item) => <LedgerRow key={item.id} left={item.recipient} meta={item.relationship + " | " + formatShortDate(item.date)} amount={item.actualAmount || item.budget} action={<><Button variant="ghost" onClick={() => setEditing(item)} title="Edit family share"><Pencil size={16} /></Button><Button variant="ghost" onClick={() => data.actions.deleteFamilyShare(item.id)} title="Delete family share"><Trash2 size={16} /></Button></>} />)}</div></Panel></div>;
-}
-
-function FamilyForm({ initial, onDone }: { initial?: FamilyShare | null; onDone: () => void }) {
-  const data = useActiveFinance();
-  const submit = (event: FormEvent<HTMLFormElement>) => { event.preventDefault(); const form = new FormData(event.currentTarget); const payload = { recipient: getString(form, "recipient"), relationship: getString(form, "relationship"), budget: getNumber(form, "budget"), actualAmount: getNumber(form, "actualAmount"), date: getString(form, "date"), cutoffId: data.cutoff.id, notes: getString(form, "notes") }; data.actions.upsertFamilyShare(initial ? { ...payload, id: initial.id } : payload); event.currentTarget.reset(); onDone(); };
-  return <form className="grid gap-3 md:grid-cols-3" onSubmit={submit}><Field label="Recipient"><input className={inputClass} name="recipient" required defaultValue={initial?.recipient || ""} /></Field><Field label="Relationship"><select className={inputClass} name="relationship" defaultValue={initial?.relationship || "Parents"}><option>Parents</option><option>Parents-In-Law</option><option>Sibling</option><option>Household Contribution</option><option>Other</option></select></Field><Field label="Budget"><input className={inputClass} name="budget" type="number" min="0" step="0.01" required defaultValue={initial?.budget || ""} /></Field><Field label="Actual Amount Given"><input className={inputClass} name="actualAmount" type="number" min="0" step="0.01" defaultValue={initial?.actualAmount || 0} /></Field><Field label="Date"><input className={inputClass} name="date" type="date" required defaultValue={initial?.date || todayInputValue()} /></Field><Field label="Notes"><input className={inputClass} name="notes" defaultValue={initial?.notes || ""} /></Field><div className="md:col-span-3 flex gap-2"><Button type="submit"><CheckCircle size={17} /> {initial ? "Save Share" : "Add Share"}</Button>{initial ? <Button variant="secondary" onClick={onDone}>Cancel</Button> : null}</div></form>;
-}
-
-function ReportsPage() {
-  const data = useActiveFinance();
-  const [filter, setFilter] = useState("Current Cutoff");
-  const dailySeries = dailyPlanSeries(data.dailyPlans, data.expenses);
-  const cumulativeSeries = cumulativeDailySeries(data.dailyPlans, data.expenses);
-  const allocation = data.categories.map((category) => ({ name: category.name, value: category.planned }));
-  const monthly = calculateMonthlySummary(data.state, "2026-09");
-  const performance = data.spendable ? ((data.spending - data.spendable) / data.spendable) * 100 : 0;
-  return <div className="grid gap-6"><PageHeader title="Reports" description="Review planned vs actual, cumulative pace, allocation, monthly summary, and cutoff performance." actions={<select className={inputClass} value={filter} onChange={(event) => setFilter(event.target.value)}><option>Current Cutoff</option><option>Previous Cutoff</option><option>Month</option><option>Last 3 Months</option><option>Last 6 Months</option><option>Year</option><option>Custom Date Range</option></select>} /><div className="grid gap-4 md:grid-cols-4"><SummaryCard label="Planned Spendable" value={formatCurrency(data.spendable)} icon={Target} /><SummaryCard label="Actual Spending" value={formatCurrency(data.spending)} icon={Receipt} /><SummaryCard label={data.spending <= data.spendable ? "Spent Less Than Planned" : "Overspent"} value={formatCurrency(Math.abs(data.spendable - data.spending))} icon={data.spending <= data.spendable ? TrendingDown : TrendingUp} tone={data.spending <= data.spendable ? "success" : "danger"} /><SummaryCard label="Performance" value={Math.abs(performance).toFixed(1) + "%"} helper={performance <= 0 ? "below budget" : "over budget"} icon={ChartBar} /></div><div className="grid gap-6 xl:grid-cols-2"><ChartPanel title="Planned vs Actual"><ResponsiveContainer width="100%" height={280}><BarChart data={dailySeries}><CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="date" /><YAxis tickFormatter={(value) => String(Number(value) / 1000) + "k"} /><Tooltip formatter={(value) => formatCurrency(Number(value))} /><Bar dataKey="planned" fill="#6c63f6" name="Planned" radius={[6, 6, 0, 0]} /><Bar dataKey="actual" fill="#2cc5a7" name="Actual" radius={[6, 6, 0, 0]} /></BarChart></ResponsiveContainer></ChartPanel><ChartPanel title="Cumulative Spending"><ResponsiveContainer width="100%" height={280}><LineChart data={cumulativeSeries}><CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="date" /><YAxis tickFormatter={(value) => String(Number(value) / 1000) + "k"} /><Tooltip formatter={(value) => formatCurrency(Number(value))} /><Line type="monotone" dataKey="planned" stroke="#6c63f6" strokeWidth={3} name="Cumulative Planned" dot={false} /><Line type="monotone" dataKey="actual" stroke="#2cc5a7" strokeWidth={3} name="Cumulative Actual" dot={false} /></LineChart></ResponsiveContainer></ChartPanel><ChartPanel title="Budget Allocation"><ResponsiveContainer width="100%" height={280}><PieChart><Pie data={allocation} dataKey="value" nameKey="name" innerRadius={60} outerRadius={100} paddingAngle={2}>{allocation.map((entry, index) => <Cell key={entry.name} fill={chartColors[index % chartColors.length]} />)}</Pie><Tooltip formatter={(value) => formatCurrency(Number(value))} /></PieChart></ResponsiveContainer></ChartPanel><ChartPanel title="September Monthly Summary"><div className="grid gap-2 text-sm"><MoneyRow label="Total Household Income" value={monthly.income} /><MoneyRow label="Total Planned Spending" value={monthly.planned} /><MoneyRow label="Total Actual Spending" value={monthly.actual} /><MoneyRow label="Remaining" value={monthly.remaining} strong /><MoneyRow label="Total Under / Over" value={Math.abs(monthly.planned - monthly.actual)} /></div></ChartPanel></div></div>;
 }
 
 function ChartPanel({ title, children }: { title: string; children: React.ReactNode }) {
@@ -983,5 +348,5 @@ function SettingsPage() {
     const form = new FormData(event.currentTarget);
     data.actions.updateProfile({ husbandName: getString(form, "husbandName"), wifeName: getString(form, "wifeName"), cutoff1Start: getNumber(form, "cutoff1Start"), cutoff1End: getNumber(form, "cutoff1End"), cutoff2Start: getNumber(form, "cutoff2Start"), cutoff2End: "end", theme: "light", demoToday: getString(form, "demoToday") });
   };
-  return <div className="grid gap-6"><PageHeader title="Settings" description="Manage couple names, cutoff dates, and your saved budget data. The app stays in light lavender mode." /><Panel><form className="grid gap-3 md:grid-cols-3" onSubmit={submit}><Field label="Husband Name"><input className={inputClass} name="husbandName" defaultValue={data.state.profile.husbandName} /></Field><Field label="Wife Name"><input className={inputClass} name="wifeName" defaultValue={data.state.profile.wifeName} /></Field><Field label="Currency"><input className={inputClass} value="PHP" readOnly /></Field><Field label="Cutoff 1 Start"><input className={inputClass} name="cutoff1Start" type="number" min="1" max="31" defaultValue={data.state.profile.cutoff1Start} /></Field><Field label="Cutoff 1 End"><input className={inputClass} name="cutoff1End" type="number" min="1" max="31" defaultValue={data.state.profile.cutoff1End} /></Field><Field label="Cutoff 2 Start"><input className={inputClass} name="cutoff2Start" type="number" min="1" max="31" defaultValue={data.state.profile.cutoff2Start} /></Field><div className="rounded-lg border border-[#d8d3ff] bg-[#f8f7ff] px-3 py-2 text-sm font-semibold text-[#5b52e6]">Light lavender mode</div><Field label="Demo Today"><input className={inputClass} name="demoToday" type="date" defaultValue={data.state.profile.demoToday} /></Field><div className="flex items-end"><Button type="submit"><CheckCircle size={17} /> Save Settings</Button></div></form></Panel><Panel><h2 className="text-lg font-semibold">Data Management</h2><p className="mt-1 text-sm text-slate-500">Budget data syncs to Supabase after login and keeps a local cache on this device.</p><div className="mt-4 flex flex-wrap gap-2"><Button variant="secondary" onClick={exportData}><ArrowDown size={17} /> Export Data</Button><Button variant="secondary" onClick={() => fileInputRef.current?.click()}><ArrowUp size={17} /> Import Data</Button><Button variant="danger" onClick={data.actions.resetDemoData}><Trash2 size={17} /> Reset All Data</Button></div><input ref={fileInputRef} type="file" accept="application/json" className="hidden" onChange={(event) => importData(event.target.files?.[0])} /></Panel><Panel><h2 className="text-lg font-semibold">Future Household Architecture</h2><div className="mt-3 grid gap-2 text-sm"><MoneyRow label="Household ID" value={0} /><p className="text-slate-600">Household: {data.state.household.id}</p><p className="text-slate-600">Husband user: {data.state.household.husbandUserId}</p><p className="text-slate-600">Wife user: {data.state.household.wifeUserId}</p></div></Panel></div>;
+  return <div className="grid gap-6"><PageHeader title="Settings" description="Manage monthly bill allocations, debts, wishlist goals, and your saved budget data." /><Panel><div className="grid gap-3 sm:grid-cols-3"><HomeActionLink to="/bills" label="Allocation for Monthly bills" icon={CalendarDays} tone="accent"/><HomeActionLink to="/debts" label="List of debts" icon={CreditCard} tone="accent"/><HomeActionLink to="/wishlist" label="List of wishlist" icon={Target} tone="accent"/></div></Panel><Panel><form className="grid gap-3 md:grid-cols-3" onSubmit={submit}><Field label="Husband Name"><input className={inputClass} name="husbandName" defaultValue={data.state.profile.husbandName} /></Field><Field label="Wife Name"><input className={inputClass} name="wifeName" defaultValue={data.state.profile.wifeName} /></Field><Field label="Currency"><input className={inputClass} value="PHP" readOnly /></Field><Field label="Cutoff 1 Start"><input className={inputClass} name="cutoff1Start" type="number" min="1" max="31" defaultValue={data.state.profile.cutoff1Start} /></Field><Field label="Cutoff 1 End"><input className={inputClass} name="cutoff1End" type="number" min="1" max="31" defaultValue={data.state.profile.cutoff1End} /></Field><Field label="Cutoff 2 Start"><input className={inputClass} name="cutoff2Start" type="number" min="1" max="31" defaultValue={data.state.profile.cutoff2Start} /></Field><div className="rounded-lg border border-[#d8d3ff] bg-[#f8f7ff] px-3 py-2 text-sm font-semibold text-[#5b52e6]">Light lavender mode</div><Field label="Demo Today"><input className={inputClass} name="demoToday" type="date" defaultValue={data.state.profile.demoToday} /></Field><div className="flex items-end"><Button type="submit"><CheckCircle size={17} /> Save Settings</Button></div></form></Panel><Panel><h2 className="text-lg font-semibold">Data Management</h2><p className="mt-1 text-sm text-slate-500">Budget data syncs to Supabase after login and keeps a local cache on this device.</p><div className="mt-4 flex flex-wrap gap-2"><Button variant="secondary" onClick={exportData}><ArrowDown size={17} /> Export Data</Button><Button variant="secondary" onClick={() => fileInputRef.current?.click()}><ArrowUp size={17} /> Import Data</Button><Button variant="danger" onClick={data.actions.resetDemoData}><Trash2 size={17} /> Reset All Data</Button></div><input ref={fileInputRef} type="file" accept="application/json" className="hidden" onChange={(event) => importData(event.target.files?.[0])} /></Panel></div>;
 }

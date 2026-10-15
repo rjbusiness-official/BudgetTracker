@@ -56,6 +56,7 @@ export const createDemoBudgetState = (): BudgetState => ({
   savingsGoals: [],
   savingsTransactions: [],
   wishlistItems: [],
+  vacationPlans: [],
   familyShares: [],
   recurringTransactions: []
 });

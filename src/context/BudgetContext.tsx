@@ -12,19 +12,31 @@ import type {
   DailyBudget,
   Debt,
   DebtPayment,
+  DebtPlanSettings,
   Expense,
   FamilyShare,
   Income,
   SalarySavingsRecord,
   SavingsGoal,
   SavingsTransaction,
+  VacationPlan,
   WishlistItem
 } from "@/src/types/budget";
-import { payBill, availableSavings, walletBalance, eachDay, expensesForSalaryPeriod, getActiveCutoff, normalizeImportedState, uid } from "@/src/utils/finance";
+import { applyDebtPayment, payBill, availableSavings, walletBalance, eachDay, expensesForSalaryPeriod, getActiveCutoff, normalizeImportedState, uid } from "@/src/utils/finance";
 
 const storageKey = "budget-tracker-v4-ruru-joselle-empty";
 
+interface SalaryWorkflowInput {
+ income: Omit<Income, "id">;
+ allocations: { category: string; amount: number }[];
+ debtPayments: { debtId: string; amount: number }[];
+}
+
 interface BudgetActions {
+ recordSalaryWorkflow: (input: SalaryWorkflowInput) => void;
+  updateDebtPlan: (plan: DebtPlanSettings) => void;
+  upsertVacationPlan: (plan: VacationPlan | Omit<VacationPlan, "id">) => void;
+  deleteVacationPlan: (id: string) => void;
   setActiveCutoff: (cutoffId: string) => void;
   updateProfile: (profile: Partial<CoupleProfile>) => void;
   resetDemoData: () => void;
@@ -75,7 +87,7 @@ interface BudgetContextValue {
 
 const BudgetContext = createContext<BudgetContextValue | null>(null);
 
-const hasId = <T extends { id?: string }>(value: T): value is T & { id: string } => Boolean(value.id);
+const hasId = <T extends object>(value: T): value is T & { id: string } => "id" in value && typeof value.id === "string" && Boolean(value.id);
 
 const legacyStorageKeys = [
   "cutoff-household-budget-v2-ruru-joselle",
@@ -242,8 +254,9 @@ export function BudgetProvider({ children }: { children: React.ReactNode }) {
     if (!supabase || !user || !remoteReady) return;
 
     setSync((current) => ({ ...current, isSaving: true, error: "" }));
+    const saveClient = supabase;
     const timeout = window.setTimeout(() => {
-      supabase
+      saveClient
         .from("household_budgets")
         .upsert({
           id: supabaseHouseholdId,
@@ -428,11 +441,7 @@ export function BudgetProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const recordDebtPayment = useCallback((payment: Omit<DebtPayment, "id">) => {
-    setState((current) => ({
-      ...current,
-      debtPayments: [{ ...payment, id: uid("debtpay") }, ...current.debtPayments],
-      debts: current.debts.map((debt) => debt.id === payment.debtId ? { ...debt, remainingBalance: Math.max(0, debt.remainingBalance - payment.amount) } : debt)
-    }));
+    setState(current => applyDebtPayment(current, { ...payment, id: uid("debtpay") }));
   }, []);
 
   const upsertSavingsGoal = useCallback((goal: SavingsGoal | Omit<SavingsGoal, "id">) => {
@@ -497,7 +506,42 @@ export function BudgetProvider({ children }: { children: React.ReactNode }) {
     setState((current) => ({ ...current, familyShares: current.familyShares.filter((item) => item.id !== id) }));
   }, []);
 
+  const upsertVacationPlan = useCallback((plan: VacationPlan | Omit<VacationPlan, "id">) => {
+    setState(current => ({ ...current, vacationPlans: "id" in plan
+      ? current.vacationPlans.map(item => item.id === plan.id ? plan : item)
+      : [{ ...plan, id: uid("vacation") }, ...current.vacationPlans] }));
+  }, []);
+
+  const deleteVacationPlan = useCallback((id: string) => {
+    setState(current => ({ ...current, vacationPlans: current.vacationPlans.filter(plan => plan.id !== id) }));
+  }, []);
+
+  const updateDebtPlan = useCallback((debtPlan: DebtPlanSettings) => {
+    if (!Number.isFinite(debtPlan.monthlyBudget) || debtPlan.monthlyBudget < 0) return;
+    setState(current => ({ ...current, debtPlan }));
+  }, []);
+
+  const recordSalaryWorkflow = useCallback((input: SalaryWorkflowInput) => {
+    setState(current => {
+      const { income, allocations, debtPayments } = input;
+      const allAmounts = [...allocations, ...debtPayments];
+      if (!Number.isFinite(income.amount) || income.amount <= 0 || allAmounts.some(a => !Number.isFinite(a.amount) || a.amount < 0) || Math.round(allAmounts.reduce((n,a)=>n+a.amount,0)*100) > Math.round(income.amount*100)) return current;
+      if (debtPayments.some(p => !current.debts.some(d => d.id === p.debtId && d.remainingBalance >= p.amount))) return current;
+      const id = uid("income");
+      const person = income.person === "Husband" ? "Ruru" as const : "Joselle" as const;
+      let next: BudgetState = { ...current, incomes: [{ ...income, id }, ...current.incomes], salaryAllocations: [...current.salaryAllocations, ...allocations.filter(a=>a.amount>0).map(a=>({ ...a, id:uid("salaryalloc"), incomeId:id }))] };
+      for (const payment of debtPayments) next = applyDebtPayment(next, { ...payment, id:uid("debtpay"), person, paymentMethod:income.paymentMethod, date:income.date, cutoffId:income.cutoffId, paymentSource:"Salary - " + person });
+      const savings = allocations.find(a=>a.category === "Savings")?.amount || 0;
+      if (savings > 0) next = { ...next, savingsTransactions: [{ id:uid("savingtx"), amount:savings, date:income.date, cutoffId:income.cutoffId, type:"Contribution", person, paymentMethod:income.paymentMethod, notes:"Salary savings" }, ...next.savingsTransactions] };
+      return recalculateSalarySavingsRecords(next);
+    });
+  }, []);
+
   const actions = useMemo<BudgetActions>(() => ({
+    recordSalaryWorkflow,
+    upsertVacationPlan,
+    deleteVacationPlan,
+    updateDebtPlan,
     setActiveCutoff,
     updateProfile,
     resetDemoData,
@@ -531,6 +575,8 @@ export function BudgetProvider({ children }: { children: React.ReactNode }) {
     upsertFamilyShare,
     deleteFamilyShare
   }), [
+    recordSalaryWorkflow,
+    updateDebtPlan,
     setActiveCutoff,
     updateProfile,
     resetDemoData,

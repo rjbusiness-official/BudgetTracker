@@ -36,43 +36,9 @@ test("server-renders the budget tracker loading shell", async () => {
   assert.equal(html.includes("Codex is working"), false);
 });
 
-test("defines the simplified money in and money out flow", async () => {
-  const [budgetApp, budgetTypes] = await Promise.all([
-    readFile(new URL("../src/components/BudgetApp.tsx", import.meta.url), "utf8"),
-    readFile(new URL("../src/types/budget.ts", import.meta.url), "utf8"),
-  ]);
-
-  assert.ok(budgetApp.includes('<Route path="/" element={<ActionHomePage />} />'));
-  assert.ok(budgetApp.includes('label="Money Out"'));
-  assert.ok(budgetApp.includes('label="Money In"'));
-  assert.ok(budgetApp.includes('label="Dashboard"'));
-  assert.ok(budgetApp.includes('Money Tracker'));
-  assert.ok(budgetApp.includes('max-w-xl'));
-  assert.ok(budgetApp.includes('function SalaryAllocationForm'));
-  assert.ok(budgetApp.includes('function SalaryAllocationRow'));
-  assert.ok(budgetApp.includes('function BackToChoices'));
-  assert.ok(budgetApp.includes('<ArrowLeft size={17} />'));
-  assert.ok(budgetApp.includes('<span>Back</span>'));
-  assert.equal(budgetApp.includes('aria-label="Switch cutoff"'), false);
-  assert.equal(budgetApp.includes('Current cutoff'), false);
-  assert.ok(budgetApp.includes('FormQuestion label="Whose money is coming in?"'));
-  assert.ok(budgetApp.includes('FormQuestion label="Income Source"'));
-  assert.ok(budgetApp.includes('Your wallets'));
-  assert.ok(budgetApp.includes('function currentSalaryCycle'));
-  assert.ok(budgetApp.includes('function SaveSuccessPopup'));
-  assert.ok(budgetApp.includes('function todayInputValue'));
-  assert.ok(budgetApp.includes('defaultValue={initial?.date || todayInputValue()}'));
-  assert.ok(budgetApp.includes('Successfully saved'));
-  assert.ok(budgetApp.includes('FormQuestion label="Whose money is going out?"'));
-  assert.ok(budgetApp.includes('FormQuestion label="Amount"'));
-  assert.ok(budgetApp.includes('FormQuestion label="Type of Expense"'));
-  assert.ok(budgetApp.includes('FormQuestion label="Date"'));
-  assert.ok(budgetApp.includes('FormQuestion label="Description"'));
-  assert.equal(budgetApp.includes('Field label="Payment Method"'), false);
-  assert.ok(budgetApp.includes('<option value="Shared Money">Shared fund (legacy)</option>'));
-  assert.ok(budgetApp.includes('"Pag-IBIG Loan"'));
-  assert.ok(budgetApp.includes('"SSS Loan"'));
-  assert.ok(budgetTypes.includes('"Government Loan"'));
-  assert.ok(budgetTypes.includes('salaryAllocations: SalaryAllocation[];'));
-  assert.ok(budgetTypes.includes('salarySavingsRecords: SalarySavingsRecord[];'));
+test("keeps the current workflow and removes retired routes", async () => {
+  const source = await readFile(new URL("../src/components/BudgetApp.tsx", import.meta.url), "utf8");
+  const routes = [...source.matchAll(/<Route path="([^"]+)"/g)].map(match => match[1]);
+  assert.deepEqual(routes, ["/", "/dashboard", "/income", "/expenses", "/expense-history", "/bills", "/debts", "/wishlist", "/transactions", "/settings", "*"]);
+  for (const label of ["Todays Expense", "Money In", "Dashboard"]) assert.ok(source.includes('label="' + label + '"'));
 });

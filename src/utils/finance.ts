@@ -5,9 +5,9 @@ import type {
   Cutoff,
   DailyBudget,
   Debt,
+  DebtPayment,
   Expense,
   Income,
-  SavingsTransaction,
   Transaction
 } from "@/src/types/budget";
 
@@ -282,6 +282,7 @@ export const normalizeImportedState = (state: BudgetState): BudgetState => ({
   ...state,
   activeCutoffId: state.activeCutoffId || state.cutoffs[0]?.id || "",
   profile: { ...state.profile, currency: "PHP", theme: "light" },
+  vacationPlans: state.vacationPlans || [],
   salaryAllocations: state.salaryAllocations || [],
   salarySavingsRecords: state.salarySavingsRecords || []
 });
@@ -292,7 +293,8 @@ export const walletBalance = (state: BudgetState, person: "Ruru" | "Joselle", me
   const incoming = state.incomes.filter(i => i.person === owner && i.paymentMethod === method).reduce((n, i) => n + Math.round(i.amount * 100), 0);
   const outgoing = state.expenses.filter(e => e.paidBy === person && e.paymentMethod === method).reduce((n, e) => n + Math.round(e.amount * 100), 0);
   const savings = state.savingsTransactions.filter(t => t.person === person && t.paymentMethod === method).reduce((n, t) => n + (t.type === "Withdrawal" ? 1 : -1) * Math.round(t.amount * 100), 0);
-  return (incoming - outgoing + savings) / 100;
+  const debtPaid = (state.debtPayments || []).filter(payment => payment.person === person && payment.paymentMethod === method).reduce((sum, payment) => sum + Math.round(payment.amount * 100), 0);
+  return (incoming - outgoing + savings - debtPaid) / 100;
 };
 
 export const availableSavings = (state: BudgetState, goalId?: string) => goalId
@@ -314,4 +316,14 @@ export const payBill = (state: BudgetState, billId: string, date: string, create
     bills.unshift({ ...bill, id: uid("bill"), dueDate, assignedCutoffId: cutoff?.id || bill.assignedCutoffId, status: "Pending" });
   }
   return { ...state, bills, expenses };
+};
+
+export const applyDebtPayment = (state: BudgetState, payment: DebtPayment): BudgetState => {
+  const debt = state.debts.find(item => item.id === payment.debtId);
+  if (!debt || state.debtPayments.some(item => item.id === payment.id) || !Number.isFinite(payment.amount) || payment.amount <= 0 || payment.amount > debt.remainingBalance || !payment.date) return state;
+  if (payment.person && payment.paymentMethod && payment.amount > walletBalance(state, payment.person, payment.paymentMethod)) return state;
+  return { ...state,
+    debtPayments: [{ ...payment, balanceAfterPayment: Math.round((debt.remainingBalance - payment.amount) * 100) / 100 }, ...state.debtPayments],
+    debts: state.debts.map(item => item.id === debt.id ? { ...item, remainingBalance: Math.round((item.remainingBalance - payment.amount) * 100) / 100 } : item)
+  };
 };
