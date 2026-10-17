@@ -160,6 +160,11 @@ function BackToChoices() {
 
 function DashboardPage() {
   const { state } = useBudget();
+  const [activityPage, setActivityPage] = useState(1);
+  const transactions = buildTransactions(state);
+  const activityPageCount = Math.max(1, Math.ceil(transactions.length / 5));
+  const currentActivityPage = Math.min(activityPage, activityPageCount);
+  const recentActivity = transactions.slice((currentActivityPage - 1) * 5, currentActivityPage * 5);
   const balance = sum((["Ruru", "Joselle"] as const).flatMap(person => allWalletMethods(state).map(method => walletBalance(state, person, method))));
   return <div className="mx-auto grid max-w-4xl gap-4">
     <PageHeader title="Financial Summary" description="Track income, spending, wallets, and savings." actions={<NavLink to="/settings" className="rounded-md border bg-white px-4 py-2 text-sm font-semibold text-violet-700">Settings</NavLink>} />
@@ -177,7 +182,7 @@ function DashboardPage() {
       <SummaryCard label="Available Balance" value={formatCurrency(balance)} helper="After allocations, expenses, debt payments, and savings" icon={Wallet} />
       <SummaryCard label="Savings" value={formatCurrency(totalSavings(state))} icon={PiggyBank} tone="accent" />
     </div>
-    <div className="grid gap-4 md:grid-cols-2"><ChartPanel title="Income and expenses by month"><ResponsiveContainer width="100%" height={260}><BarChart data={Array.from(new Set([...state.incomes.map(i=>i.date.slice(0,7)),...state.expenses.map(e=>e.date.slice(0,7))])).sort().slice(-6).map(month=>({month,income:sum(state.incomes.filter(i=>i.date.startsWith(month)).map(i=>i.amount)),expenses:sum(state.expenses.filter(e=>e.date.startsWith(month)).map(e=>e.amount))}))}><CartesianGrid strokeDasharray="4 6" vertical={false} stroke="#e8e8f0"/><XAxis dataKey="month" axisLine={false} tickLine={false}/><YAxis axisLine={false} tickLine={false} width={55}/><Tooltip formatter={v=>formatCurrency(Number(v))}/><Bar dataKey="income" name="Income" fill="#249fff" radius={[10,10,10,10]}/><Bar dataKey="expenses" name="Expenses" fill="#c28afb" radius={[10,10,10,10]}/></BarChart></ResponsiveContainer></ChartPanel><ChartPanel title="Spending by expense type"><ResponsiveContainer width="100%" height={260}><PieChart><Pie data={Array.from(new Set(state.expenses.map(e=>e.category))).map(name=>({name,value:sum(state.expenses.filter(e=>e.category===name).map(e=>e.amount))}))} dataKey="value" nameKey="name" innerRadius={45} outerRadius={85} label>{Array.from(new Set(state.expenses.map(e=>e.category))).map((name,i)=><Cell key={name} fill={chartColors[i%chartColors.length]}/>)}</Pie><Tooltip formatter={v=>formatCurrency(Number(v))}/></PieChart></ResponsiveContainer>{!state.expenses.length&&<p className="text-sm text-slate-500">Record expenses to see the breakdown.</p>}</ChartPanel></div>
+    <div className="grid gap-4 md:grid-cols-2"><ChartPanel title="Income and expenses by month"><ResponsiveContainer width="100%" height={260}><BarChart data={Array.from(new Set([...state.incomes.map(i=>i.date.slice(0,7)),...state.expenses.map(e=>e.date.slice(0,7))])).sort().slice(-6).map(month=>({month,income:sum(state.incomes.filter(i=>i.date.startsWith(month)).map(i=>i.amount)),expenses:sum(state.expenses.filter(e=>e.date.startsWith(month)).map(e=>e.amount))}))}><CartesianGrid strokeDasharray="4 6" vertical={false} stroke="#e8e8f0"/><XAxis dataKey="month" axisLine={false} tickLine={false}/><YAxis axisLine={false} tickLine={false} width={55}/><Tooltip formatter={v=>formatCurrency(Number(v))}/><Bar dataKey="income" name="Income" fill="#249fff" radius={[10,10,10,10]}/><Bar dataKey="expenses" name="Expenses" fill="#c28afb" radius={[10,10,10,10]}/></BarChart></ResponsiveContainer></ChartPanel><ChartPanel title="Spending by expense type"><ResponsiveContainer width="100%" height={260}><PieChart><Pie data={Array.from(new Set(state.expenses.map(e=>e.category))).map(name=>({name,value:sum(state.expenses.filter(e=>e.category===name).map(e=>e.amount))}))} dataKey="value" nameKey="name" innerRadius={45} outerRadius={85} label={({ name }) => name}>{Array.from(new Set(state.expenses.map(e=>e.category))).map((name,i)=><Cell key={name} fill={chartColors[i%chartColors.length]}/>)}</Pie><Tooltip formatter={v=>formatCurrency(Number(v))}/></PieChart></ResponsiveContainer>{!state.expenses.length&&<p className="text-sm text-slate-500">Record expenses to see the breakdown.</p>}</ChartPanel></div>
     <Panel>
       <h2 className="text-lg font-semibold">Salary allocations</h2>
       <p className="mt-1 text-sm text-slate-500">Allocations are automatically deducted from the available balance when you save your salary.</p>
@@ -193,7 +198,16 @@ function DashboardPage() {
       {!state.incomes.some(income => income.type === "Salary" || income.source === "Salary") && <p className="mt-3 text-sm text-slate-500">Save a salary allocation to see the breakdown here.</p>}
     </Panel>
     <WalletBalances />
-    <Panel><h2 className="text-lg font-semibold">Recent activity</h2><div className="mt-4 grid gap-2">{buildTransactions(state).slice(0,12).map(t => <LedgerRow key={t.id} left={t.description} meta={formatShortDate(t.date) + " | " + t.type + " | " + t.person} amount={t.amount} />)}{!buildTransactions(state).length ? <EmptyState title="No activity yet" description="Start by recording Money In." /> : null}</div><NavLink to="/transactions" className="mt-4 inline-block text-sm font-semibold text-violet-700">View all activity</NavLink></Panel>
+    <Panel>
+      <h2 className="text-lg font-semibold">Recent activity</h2>
+      <div className="mt-4 grid gap-2">{recentActivity.map(t => <LedgerRow key={t.id} left={t.description} meta={formatShortDate(t.date) + " | " + t.type + " | " + t.person} amount={t.amount} />)}{!transactions.length ? <EmptyState title="No activity yet" description="Start by recording Money In." /> : null}</div>
+      {activityPageCount > 1 && <nav aria-label="Recent activity pagination" className="mt-4 flex flex-wrap items-center justify-between gap-3">
+        <Button variant="secondary" disabled={currentActivityPage === 1} onClick={() => setActivityPage(currentActivityPage - 1)}>Previous</Button>
+        <span className="text-sm text-slate-500" aria-live="polite">Page {currentActivityPage} of {activityPageCount}</span>
+        <Button variant="secondary" disabled={currentActivityPage === activityPageCount} onClick={() => setActivityPage(currentActivityPage + 1)}>Next</Button>
+      </nav>}
+      <NavLink to="/transactions" className="mt-4 inline-block text-sm font-semibold text-violet-700">View all activity</NavLink>
+    </Panel>
   </div>;
 }
 

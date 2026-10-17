@@ -28,13 +28,22 @@ export const formatCurrency = (value: number) =>
 
 export const uid = (prefix: string) => prefix + "-" + Math.random().toString(36).slice(2, 9) + "-" + Date.now().toString(36);
 
-export const toDate = (value: string) => new Date(value + "T00:00:00");
+// Date inputs need local midnight; datetime-local expense values already include a time.
+export const toDate = (value: string) =>
+  new Date(/^\d{4}-\d{2}-\d{2}$/.test(value) ? value + "T00:00:00" : value || NaN);
+
+const formatDate = (value: string, options: Intl.DateTimeFormatOptions) => {
+  const date = toDate(value);
+  return Number.isFinite(date.getTime())
+    ? new Intl.DateTimeFormat("en-PH", options).format(date)
+    : "Invalid date";
+};
 
 export const formatShortDate = (value: string) =>
-  new Intl.DateTimeFormat("en-PH", { month: "short", day: "numeric" }).format(toDate(value));
+  formatDate(value, { month: "short", day: "numeric" });
 
 export const formatLongDate = (value: string) =>
-  new Intl.DateTimeFormat("en-PH", { month: "long", day: "numeric", year: "numeric" }).format(toDate(value));
+  formatDate(value, { month: "long", day: "numeric", year: "numeric" });
 
 export const eachDay = (startDate: string, endDate: string) => {
   const dates: string[] = [];

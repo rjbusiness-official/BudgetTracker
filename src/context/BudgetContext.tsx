@@ -544,7 +544,7 @@ export function BudgetProvider({ children }: { children: React.ReactNode }) {
       let next: BudgetState = { ...current, incomes: [{ ...income, id }, ...current.incomes], salaryAllocations: [...current.salaryAllocations, ...allocations.filter(a=>a.amount>0).map(a=>({ ...a, id:uid("salaryalloc"), incomeId:id }))] };
       for (const payment of debtPayments) next = applyDebtPayment(next, { ...payment, incomeId:id, id:uid("debtpay"), person, paymentMethod:income.paymentMethod, date:income.date, cutoffId:income.cutoffId, paymentSource:"Salary - " + person });
       const savings = allocations.find(a=>a.category === "Savings")?.amount || 0;
-      if (savings > 0) next = { ...next, savingsTransactions: [{ id:uid("savingtx"), amount:savings, date:income.date, cutoffId:income.cutoffId, type:"Contribution", person, paymentMethod:income.paymentMethod, notes:"Salary savings" }, ...next.savingsTransactions] };
+      if (savings > 0) next = { ...next, savingsTransactions: [{ id:uid("savingtx"), amount:savings, date:income.date, cutoffId:income.cutoffId, type:"Contribution", person, paymentMethod:income.paymentMethod, notes:income.type === "Salary" ? "Salary savings" : "Direct to savings" }, ...next.savingsTransactions] };
       return recalculateSalarySavingsRecords(next);
     });
   }, []);
