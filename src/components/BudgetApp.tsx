@@ -168,15 +168,17 @@ function DashboardPage() {
   const activityPageCount = Math.max(1, Math.ceil(transactions.length / 5));
   const currentActivityPage = Math.min(activityPage, activityPageCount);
   const recentActivity = transactions.slice((currentActivityPage - 1) * 5, currentActivityPage * 5);
-  const balance = sum((["Ruru", "Joselle"] as const).flatMap(person => allWalletMethods(state).map(method => walletBalance(state, person, method))));
+  const remainingFor = (person: "Ruru" | "Joselle") => sum(allWalletMethods(state).map(method => Math.round(walletBalance(state, person, method) * 100))) / 100;
+  const ruruRemaining = remainingFor("Ruru");
+  const joselleRemaining = remainingFor("Joselle");
+  const balance = Math.round((ruruRemaining + joselleRemaining) * 100) / 100;
   return <div className="mx-auto grid max-w-4xl gap-4">
     <PageHeader title="Financial Summary" description="Track income, spending, wallets, and savings." actions={<NavLink to="/settings" className="rounded-md border bg-white px-4 py-2 text-sm font-semibold text-violet-700">Settings</NavLink>} />
     <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-      <SummaryCard label="Remaining Money" value={formatCurrency(totalIncome(state.incomes))} helper={[
-        "Ruru: " + formatCurrency(totalIncome(state.incomes.filter(income => income.person === "Husband"))),
-        "Joselle: " + formatCurrency(totalIncome(state.incomes.filter(income => income.person === "Wife"))),
-        ...(state.incomes.some(income => income.person === "Shared") ? ["Shared: " + formatCurrency(totalIncome(state.incomes.filter(income => income.person === "Shared")))] : [])
-      ].join("\n")} icon={TrendingUp} tone="success" />
+      <SummaryCard label="Remaining Money" value={formatCurrency(balance)} helper={[
+        "Ruru: " + formatCurrency(ruruRemaining),
+        "Joselle: " + formatCurrency(joselleRemaining)
+      ].join("\n")} icon={Wallet} tone="success" />
       <SummaryCard label="This month Expense" value={formatCurrency(actualSpend(state.expenses))} helper={[
         "Ruru: " + formatCurrency(actualSpend(state.expenses.filter(expense => expense.paidBy === "Ruru"))),
         "Joselle: " + formatCurrency(actualSpend(state.expenses.filter(expense => expense.paidBy === "Joselle"))),
