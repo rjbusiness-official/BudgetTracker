@@ -23,7 +23,7 @@ import type {
   VacationPlan,
   WishlistItem
 } from "@/src/types/budget";
-import { normalizeWalletMethods, applyFundTransfer, fundTransferError, applyDebtPayment, payBill, availableSavings, walletBalance, eachDay, expensesForSalaryPeriod, getActiveCutoff, normalizeImportedState, uid } from "@/src/utils/finance";
+import { applyNamedSavings, namedSavingsError, normalizeWalletMethods, applyFundTransfer, fundTransferError, applyDebtPayment, payBill, availableSavings, walletBalance, eachDay, expensesForSalaryPeriod, getActiveCutoff, normalizeImportedState, uid } from "@/src/utils/finance";
 
 import { normalizeExpenseTypes } from "@/src/utils/expenseTypes";
 import { normalizeBillCategories } from "@/src/utils/monthlyBills";
@@ -37,6 +37,7 @@ interface SalaryWorkflowInput {
 }
 
 interface BudgetActions {
+  contributeToSavings: (transaction: Omit<SavingsTransaction, "id">) => string;
   setWalletMethods: (methods: string[]) => void;
   transferFunds: (transfer: Omit<FundTransfer, "id">) => string;
   setExpenseTypes: (types: string[]) => void;
@@ -569,7 +570,16 @@ export function BudgetProvider({ children }: { children: React.ReactNode }) {
     setState(current => ({ ...current, walletMethods: normalizeWalletMethods(methods) }));
   }, []);
 
+  const contributeToSavings = useCallback((transaction: Omit<SavingsTransaction, "id">) => {
+    const error = namedSavingsError(state, transaction);
+    if (error) return error;
+    const record = { ...transaction, id: uid("savingtx") };
+    setState(current => applyNamedSavings(current, record));
+    return "";
+  }, [state]);
+
   const actions = useMemo<BudgetActions>(() => ({
+    contributeToSavings,
     setWalletMethods,
     transferFunds,
     setExpenseTypes,
@@ -611,6 +621,7 @@ export function BudgetProvider({ children }: { children: React.ReactNode }) {
     upsertFamilyShare,
     deleteFamilyShare
   }), [
+    contributeToSavings,
     setWalletMethods,
     transferFunds,
     setExpenseTypes,

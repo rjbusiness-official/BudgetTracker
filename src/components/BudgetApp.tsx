@@ -6,6 +6,7 @@ import { ArrowLeft, ArrowDown, ArrowUp, ArrowRightLeft, CalendarDays, CheckCircl
 import type { LucideIcon } from "lucide-react";
 import { Bar, BarChart, CartesianGrid, Cell, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { TodayExpenses, MoneyInWorkflow } from "./MoneyWorkflow";
+import { SavingsPage, SavingsSettings } from "./Savings";
 import TransferFunds from "./TransferFunds";
 import DebtAmortization from "@/src/components/DebtAmortization";
 import { AuthProvider, useAuth } from "@/src/context/AuthContext";
@@ -100,7 +101,7 @@ function AppShell() {
             <span className="text-lg font-bold tracking-tight text-[#191923]">Budget Tracker</span>
           </NavLink>
           <nav aria-label="Main navigation" className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-1">
-            {([{to:"/dashboard",label:"Dashboard",icon:LayoutDashboard},{to:"/expenses",label:"Todays Expense",icon:Receipt},{to:"/income",label:"Money In",icon:PhilippinePeso},{to:"/transfers",label:"Transfer Funds",icon:ArrowRightLeft},{to:"/settings",label:"Settings",icon:Settings}]).map(({to,label,icon:Icon})=><NavLink key={to} to={to} className={({isActive})=>cn("flex items-center gap-3 rounded-full px-4 py-3.5 text-sm font-medium transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#249fff]",isActive || (to==="/settings" && ["/bills","/debts","/wishlist","/expense-types","/wallet-settings"].includes(location.pathname))?"bg-[#1e1e29] text-white":"text-[#4e5263] hover:bg-[#f2f0fa]")}><Icon size={20} strokeWidth={1.6}/><span>{label}</span></NavLink>)}
+            {([{to:"/dashboard",label:"Dashboard",icon:LayoutDashboard},{to:"/expenses",label:"Todays Expense",icon:Receipt},{to:"/income",label:"Money In",icon:PhilippinePeso},{to:"/transfers",label:"Transfer Funds",icon:ArrowRightLeft},{to:"/savings",label:"Savings",icon:PiggyBank},{to:"/settings",label:"Settings",icon:Settings}]).map(({to,label,icon:Icon})=><NavLink key={to} to={to} className={({isActive})=>cn("flex items-center gap-3 rounded-full px-4 py-3.5 text-sm font-medium transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#249fff]",isActive || (to==="/settings" && ["/bills","/debts","/wishlist","/expense-types","/wallet-settings","/savings-settings"].includes(location.pathname))?"bg-[#1e1e29] text-white":"text-[#4e5263] hover:bg-[#f2f0fa]")}><Icon size={20} strokeWidth={1.6}/><span>{label}</span></NavLink>)}
           </nav>
           <div className="mt-auto hidden pt-10 lg:block"><div className="rounded-[24px] bg-[#e3dcf6] p-5"><span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-white/70 text-[#7956b5]"><Heart size={22}/></span><h2 className="mt-4 text-lg font-semibold">Building a future.</h2><p className="mt-2 text-sm leading-6 text-[#5d5573]">Budgeting isn’t about limiting yourself — it’s about making the things that excite you possible.</p><NavLink to="/income" className="mt-5 inline-flex items-center gap-2 text-sm font-semibold">plan your salary <ChevronRight size={16}/></NavLink></div></div>
         </aside>
@@ -115,6 +116,7 @@ function AppShell() {
             <Route path="/dashboard" element={<DashboardPage />} />
             <Route path="/income" element={<MoneyInWorkflow />} />
             <Route path="/transfers" element={<TransferFunds />} />
+            <Route path="/savings" element={<SavingsPage />} />
             <Route path="/expenses" element={<TodayExpenses />} />
             <Route path="/expense-history" element={<ExpensesPage />} />
             <Route path="/bills" element={<BillsPage />} />
@@ -124,6 +126,7 @@ function AppShell() {
             <Route path="/settings" element={<SettingsPage />} />
             <Route path="/expense-types" element={<ExpenseTypesSettings />} />
             <Route path="/wallet-settings" element={<WalletMethodsSettings />} />
+            <Route path="/savings-settings" element={<SavingsSettings />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
           </main>
@@ -149,7 +152,7 @@ function HomeActionLink({ to, label, icon: Icon, tone, className }: { to: string
 
 function BackToChoices() {
   const { pathname } = useLocation();
-  const isSettingsPage = ["/bills", "/debts", "/wishlist", "/expense-types", "/wallet-settings"].includes(pathname);
+  const isSettingsPage = ["/bills", "/debts", "/wishlist", "/expense-types", "/wallet-settings", "/savings-settings"].includes(pathname);
   return (
     <NavLink to={isSettingsPage ? "/settings" : "/"} className="inline-flex min-h-10 w-fit items-center justify-center gap-2 rounded-full border border-transparent bg-[#f1f1f3] px-3 py-2 text-sm font-semibold text-slate-600 shadow-sm transition hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-[#249fff]/30">
       <ArrowLeft size={17} />
@@ -169,12 +172,12 @@ function DashboardPage() {
   return <div className="mx-auto grid max-w-4xl gap-4">
     <PageHeader title="Financial Summary" description="Track income, spending, wallets, and savings." actions={<NavLink to="/settings" className="rounded-md border bg-white px-4 py-2 text-sm font-semibold text-violet-700">Settings</NavLink>} />
     <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-      <SummaryCard label="Money In" value={formatCurrency(totalIncome(state.incomes))} helper={[
+      <SummaryCard label="Remaining Money" value={formatCurrency(totalIncome(state.incomes))} helper={[
         "Ruru: " + formatCurrency(totalIncome(state.incomes.filter(income => income.person === "Husband"))),
         "Joselle: " + formatCurrency(totalIncome(state.incomes.filter(income => income.person === "Wife"))),
         ...(state.incomes.some(income => income.person === "Shared") ? ["Shared: " + formatCurrency(totalIncome(state.incomes.filter(income => income.person === "Shared")))] : [])
       ].join("\n")} icon={TrendingUp} tone="success" />
-      <SummaryCard label="Money Out" value={formatCurrency(actualSpend(state.expenses))} helper={[
+      <SummaryCard label="This month Expense" value={formatCurrency(actualSpend(state.expenses))} helper={[
         "Ruru: " + formatCurrency(actualSpend(state.expenses.filter(expense => expense.paidBy === "Ruru"))),
         "Joselle: " + formatCurrency(actualSpend(state.expenses.filter(expense => expense.paidBy === "Joselle"))),
         ...(state.expenses.some(expense => expense.paidBy === "Shared Money") ? ["Shared Money: " + formatCurrency(actualSpend(state.expenses.filter(expense => expense.paidBy === "Shared Money")))] : [])
@@ -348,7 +351,7 @@ function WalletMethodsSettings() {
     actions.setWalletMethods([...methods, method]); setName(""); setError("");
   };
   const remove = (method: string) => {
-    if (["Ruru", "Joselle"].some(person => walletBalance(state, person as "Ruru" | "Joselle", method) !== 0)) {
+    if (["Ruru", "Joselle"].some(person => walletBalance(state, person as "Ruru" | "Joselle", method) !== 0) || state.savingsGoals.some(goal => goal.paymentMethod === method && goal.currentSavings > 0)) {
       setError("Transfer or clear this account's remaining balance before removing it."); return;
     }
     actions.setWalletMethods(methods.filter(item => item !== method)); setError("");
@@ -408,7 +411,7 @@ function SettingsPage() {
     };
     reader.readAsText(file);
   };
-  return <div className="grid gap-6"><PageHeader title="Settings" description="Manage expense types, monthly bill allocations, debts, wishlist goals, and your saved budget data." /><Panel><div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4"><HomeActionLink to="/bills" label="Monthly Allocation Bills" icon={CalendarDays} tone="accent"/><HomeActionLink to="/debts" label="List of debts" icon={CreditCard} tone="accent"/><HomeActionLink to="/wishlist" label="List of wishlist" icon={Target} tone="accent"/><HomeActionLink to="/expense-types" label="Expense Types" icon={Receipt} tone="accent"/><HomeActionLink to="/wallet-settings" label="Banks, Wallets & Cash" icon={Wallet} tone="accent"/></div></Panel><Panel><h2 className="text-lg font-semibold">Data Management</h2><p className="mt-1 text-sm text-slate-500">Budget data syncs to Supabase after login and keeps a local cache on this device.</p><div className="mt-4 flex flex-wrap gap-2"><Button variant="secondary" onClick={exportData}><ArrowDown size={17} /> Export Data</Button><Button variant="secondary" onClick={() => fileInputRef.current?.click()}><ArrowUp size={17} /> Import Data</Button><Button variant="danger" onClick={() => {setResetNotice("");setResetError("");setResetPassword("");setResetOpen(true);}}><Trash2 size={17} /> Reset All Data</Button></div><input ref={fileInputRef} type="file" accept="application/json" className="hidden" onChange={(event) => importData(event.target.files?.[0])} /></Panel>
+  return <div className="grid gap-6"><PageHeader title="Settings" description="Manage expense types, monthly bill allocations, debts, wishlist goals, and your saved budget data." /><Panel><div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4"><HomeActionLink to="/bills" label="Monthly Allocation Bills" icon={CalendarDays} tone="accent"/><HomeActionLink to="/debts" label="List of debts" icon={CreditCard} tone="accent"/><HomeActionLink to="/wishlist" label="List of wishlist" icon={Target} tone="accent"/><HomeActionLink to="/expense-types" label="Expense Types" icon={Receipt} tone="accent"/><HomeActionLink to="/wallet-settings" label="Banks, Wallets & Cash" icon={Wallet} tone="accent"/><HomeActionLink to="/savings-settings" label="Add new savings" icon={PiggyBank} tone="accent"/></div></Panel><Panel><h2 className="text-lg font-semibold">Data Management</h2><p className="mt-1 text-sm text-slate-500">Budget data syncs to Supabase after login and keeps a local cache on this device.</p><div className="mt-4 flex flex-wrap gap-2"><Button variant="secondary" onClick={exportData}><ArrowDown size={17} /> Export Data</Button><Button variant="secondary" onClick={() => fileInputRef.current?.click()}><ArrowUp size={17} /> Import Data</Button><Button variant="danger" onClick={() => {setResetNotice("");setResetError("");setResetPassword("");setResetOpen(true);}}><Trash2 size={17} /> Reset All Data</Button></div><input ref={fileInputRef} type="file" accept="application/json" className="hidden" onChange={(event) => importData(event.target.files?.[0])} /></Panel>
     {resetNotice && <p role="status" className="text-sm text-emerald-700">{resetNotice}</p>}
     {resetOpen && <Modal title="Reset All Data" onClose={closeReset}>
       <form onSubmit={confirmReset} className="grid gap-4" aria-busy={resetting}>

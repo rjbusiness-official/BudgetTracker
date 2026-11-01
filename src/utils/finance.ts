@@ -402,3 +402,24 @@ export const applyFundTransfer = (state: BudgetState, transfer: FundTransfer): B
   if (fundTransferError(state, transfer) || (state.fundTransfers || []).some(item => item.id === transfer.id)) return state;
   return { ...state, fundTransfers: [transfer, ...(state.fundTransfers || [])] };
 };
+
+export const savingsForOwner = (state: BudgetState, owner: "Ruru" | "Joselle" | "Combined") => state.savingsGoals.filter(goal => goal.owner === owner);
+
+export const namedSavingsError = (state: BudgetState, transaction: Omit<import("@/src/types/budget").SavingsTransaction, "id">): string => {
+  const goal = state.savingsGoals.find(item => item.id === transaction.goalId);
+  if (!goal?.owner || !goal.paymentMethod) return "Choose a savings account created in Settings.";
+  if (transaction.type !== "Contribution") return "Choose a savings contribution.";
+  if (!transaction.person || !["Ruru", "Joselle"].includes(transaction.person)) return "Choose who is contributing.";
+  if (goal.owner !== "Combined" && goal.owner !== transaction.person) return "The contributor must match the savings owner.";
+  if (transaction.paymentMethod !== goal.paymentMethod) return "Use the bank or wallet assigned to this savings account.";
+  if (!getWalletMethods(state).includes(goal.paymentMethod)) return "Add this bank or wallet in Settings before contributing.";
+  if (!Number.isFinite(transaction.amount) || transaction.amount <= 0 || Math.abs(transaction.amount * 100 - Math.round(transaction.amount * 100)) > 0.000001) return "Enter a positive amount with up to two decimal places.";
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(transaction.date) || !Number.isFinite(Date.parse(transaction.date))) return "Choose a valid date.";
+  if (Math.round(transaction.amount * 100) > Math.round(walletBalance(state, transaction.person, goal.paymentMethod) * 100)) return "There are insufficient available funds in the selected bank or wallet.";
+  return "";
+};
+
+export const applyNamedSavings = (state: BudgetState, transaction: import("@/src/types/budget").SavingsTransaction): BudgetState => {
+  if (namedSavingsError(state, transaction) || state.savingsTransactions.some(item => item.id === transaction.id)) return state;
+  return { ...state, savingsTransactions: [transaction, ...state.savingsTransactions], savingsGoals: state.savingsGoals.map(goal => goal.id === transaction.goalId ? { ...goal, currentSavings: Math.round((goal.currentSavings + transaction.amount) * 100) / 100, contributionThisCutoff: Math.round((goal.contributionThisCutoff + transaction.amount) * 100) / 100 } : goal) };
+};

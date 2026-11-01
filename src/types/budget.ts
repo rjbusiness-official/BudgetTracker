@@ -162,7 +162,11 @@ export interface DebtPayment {
   notes?: string;
 }
 
+export type SavingsOwner = "Ruru" | "Joselle" | "Combined";
+
 export interface SavingsGoal {
+  owner?: SavingsOwner;
+  paymentMethod?: PaymentMethod;
   id: string;
   name: string;
   targetAmount: number;
