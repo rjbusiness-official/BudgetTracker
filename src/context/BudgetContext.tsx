@@ -19,11 +19,12 @@ import type {
   Income,
   SalarySavingsRecord,
   SavingsGoal,
+  SavingsDeletion,
   SavingsTransaction,
   VacationPlan,
   WishlistItem
 } from "@/src/types/budget";
-import { applyNamedSavings, namedSavingsError, normalizeWalletMethods, applyFundTransfer, fundTransferError, applyDebtPayment, payBill, availableSavings, walletBalance, eachDay, expensesForSalaryPeriod, getActiveCutoff, normalizeImportedState, uid } from "@/src/utils/finance";
+import { applySavingsDeletion, savingsDeletionError, applyNamedSavings, namedSavingsError, normalizeWalletMethods, applyFundTransfer, fundTransferError, applyDebtPayment, payBill, availableSavings, walletBalance, eachDay, expensesForSalaryPeriod, getActiveCutoff, normalizeImportedState, uid } from "@/src/utils/finance";
 
 import { normalizeExpenseTypes } from "@/src/utils/expenseTypes";
 import { normalizeBillCategories } from "@/src/utils/monthlyBills";
@@ -71,7 +72,7 @@ interface BudgetActions {
   deleteDebt: (id: string) => void;
   recordDebtPayment: (payment: Omit<DebtPayment, "id">) => void;
   upsertSavingsGoal: (goal: SavingsGoal | Omit<SavingsGoal, "id">) => void;
-  deleteSavingsGoal: (id: string) => void;
+  deleteSavingsGoal: (input: SavingsDeletion) => string;
   addSavingsTransaction: (transaction: Omit<SavingsTransaction, "id">) => void;
   upsertWishlistItem: (item: WishlistItem | Omit<WishlistItem, "id">) => void;
   deleteWishlistItem: (id: string) => void;
@@ -464,9 +465,13 @@ export function BudgetProvider({ children }: { children: React.ReactNode }) {
     });
   }, []);
 
-  const deleteSavingsGoal = useCallback((id: string) => {
-    setState((current) => ({ ...current, savingsGoals: current.savingsGoals.filter((goal) => goal.id !== id), savingsTransactions: current.savingsTransactions.filter((transaction) => transaction.goalId !== id) }));
-  }, []);
+  const deleteSavingsGoal = useCallback((input: SavingsDeletion) => {
+    const error = savingsDeletionError(state, input);
+    if (error) return error;
+    const recordId = uid("savings-close");
+    setState(current => applySavingsDeletion(current, input, recordId));
+    return "";
+  }, [state]);
 
   const addSavingsTransaction = useCallback((transaction: Omit<SavingsTransaction, "id">) => {
     setState((current) => {

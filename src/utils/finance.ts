@@ -233,7 +233,7 @@ export const buildTransactions = (state: BudgetState): Transaction[] => {
     return {
       id: "tx-" + transaction.id,
       date: transaction.date,
-      description: goal ? goal.name : "Savings",
+      description: goal ? goal.name : transaction.goalName || "Savings",
       type: transaction.type === "Contribution" ? "Savings Contribution" : "Savings Withdrawal",
       category: "Savings",
       person: transaction.person ? transaction.person + " · " + transaction.paymentMethod : "Shared Money",
@@ -427,4 +427,37 @@ export const namedSavingsError = (state: BudgetState, transaction: Omit<import("
 export const applyNamedSavings = (state: BudgetState, transaction: import("@/src/types/budget").SavingsTransaction): BudgetState => {
   if (namedSavingsError(state, transaction) || state.savingsTransactions.some(item => item.id === transaction.id)) return state;
   return { ...state, savingsTransactions: [{ ...transaction, recordOnly: true }, ...state.savingsTransactions], savingsGoals: state.savingsGoals.map(goal => goal.id === transaction.goalId ? { ...goal, currentSavings: Math.round((goal.currentSavings + transaction.amount) * 100) / 100, contributionThisCutoff: Math.round((goal.contributionThisCutoff + transaction.amount) * 100) / 100 } : goal) };
+};
+
+
+export const savingsDeletionError = (state: BudgetState, input: import("@/src/types/budget").SavingsDeletion): string => {
+  const goal = state.savingsGoals.find(item => item.id === input.goalId);
+  if (!goal) return "This savings account no longer exists.";
+  if (!Number.isFinite(goal.currentSavings) || goal.currentSavings < 0) return "The savings balance must be zero or positive before deleting.";
+  if (goal.currentSavings !== input.balance) return "The savings balance changed. Close this dialog and review the updated balance before deleting.";
+  if (goal.currentSavings === 0) return "";
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(input.date) || !Number.isFinite(Date.parse(input.date))) return "Choose a valid transfer date.";
+  const destination = input.destination;
+  if (!destination) return "Choose where to transfer the savings balance.";
+  if (destination.type === "wallet") {
+    if (!["Ruru", "Joselle"].includes(destination.person) || !getWalletMethods(state).includes(destination.paymentMethod)) return "Choose a valid wallet and its owner.";
+  } else if (destination.type === "savings") {
+    if (destination.goalId === goal.id || !state.savingsGoals.some(item => item.id === destination.goalId && item.owner)) return "Choose a different savings account.";
+  } else return "Choose a valid transfer destination.";
+  return "";
+};
+
+export const applySavingsDeletion = (state: BudgetState, input: import("@/src/types/budget").SavingsDeletion, recordId: string): BudgetState => {
+  if (savingsDeletionError(state, input)) return state;
+  const goal = state.savingsGoals.find(item => item.id === input.goalId)!;
+  const destination = input.destination;
+  const balance = Math.round(goal.currentSavings * 100) / 100;
+  // Retain historical wallet effects and exclude deleted-goal history from general savings totals.
+  const history = state.savingsTransactions.map(transaction => transaction.goalId === goal.id ? { ...transaction, goalName: goal.name } : transaction);
+  const transactions: import("@/src/types/budget").SavingsTransaction[] = [];
+  if (balance > 0 && destination) {
+    transactions.push({ id: recordId + "-out", goalId: goal.id, goalName: goal.name, amount: balance, date: input.date, cutoffId: input.cutoffId, type: "Withdrawal", recordOnly: destination.type !== "wallet", person: destination.type === "wallet" ? destination.person : undefined, paymentMethod: destination.type === "wallet" ? destination.paymentMethod : undefined, notes: "Balance transferred when deleting " + goal.name });
+    if (destination.type === "savings") transactions.push({ id: recordId + "-in", goalId: destination.goalId, amount: balance, date: input.date, cutoffId: input.cutoffId, type: "Contribution", recordOnly: true, notes: "Transferred from deleted savings: " + goal.name });
+  }
+  return { ...state, savingsGoals: state.savingsGoals.filter(item => item.id !== goal.id).map(item => balance > 0 && destination?.type === "savings" && item.id === destination.goalId ? { ...item, currentSavings: Math.round((item.currentSavings + balance) * 100) / 100 } : item), savingsTransactions: [...transactions, ...history] };
 };

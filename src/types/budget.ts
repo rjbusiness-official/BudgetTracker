@@ -176,7 +176,20 @@ export interface SavingsGoal {
   notes?: string;
 }
 
+export type SavingsDestination =
+  | { type: "wallet"; person: "Ruru" | "Joselle"; paymentMethod: PaymentMethod }
+  | { type: "savings"; goalId: string };
+
+export interface SavingsDeletion {
+  goalId: string;
+  balance: number;
+  destination?: SavingsDestination;
+  date: string;
+  cutoffId: string;
+}
+
 export interface SavingsTransaction {
+  goalName?: string;
   recordOnly?: boolean;
   person?: "Ruru" | "Joselle";
   paymentMethod?: PaymentMethod;
