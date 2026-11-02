@@ -39,3 +39,15 @@ test("decimal currency and full-wallet transfers are supported", () => {
  const state=fresh();state.incomes[0].amount=10.10;
  const after=applyFundTransfer(state,transfer({amount:10.10}));assert.equal(walletBalance(after,"Ruru","BDO"),0);assert.equal(walletBalance(after,"Ruru","Cash"),10.10);
 });
+
+test("wallet to savings deducts once, supports the same bank, and persists", () => {
+ const state=fresh();state.savingsGoals=[{id:"goal",name:"Emergency",owner:"Combined",paymentMethod:"BDO",currentSavings:0,contributionThisCutoff:0}];
+ const input=transfer({toMethod:"BDO",toGoalId:"goal"});
+ const after=JSON.parse(JSON.stringify(applyFundTransfer(state,input)));
+ assert.equal(walletBalance(after,"Ruru","BDO"),700);
+ assert.equal(after.savingsGoals[0].currentSavings,300);
+ assert.equal(after.savingsTransactions.length,1);
+ assert.equal(applyFundTransfer(after,input),after);
+ for(const override of [{toGoalId:"missing"},{amount:1001},{toMethod:"Cash"}]) assert.equal(applyFundTransfer(state,{...input,...override}),state);
+ state.savingsGoals[0].owner="Joselle";assert.equal(applyFundTransfer(state,input),state);
+});

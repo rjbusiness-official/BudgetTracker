@@ -12,9 +12,9 @@ test("owner selection returns only that owner's named savings",()=>{
  const state=fresh();for(const [owner,id] of [["Ruru","ruru"],["Joselle","joselle"],["Combined","combined"]])assert.deepEqual(savingsForOwner(state,owner).map(g=>g.id),[id]);
  state.savingsGoals.push({id:"legacy",name:"Old savings"});assert.equal(savingsForOwner(state,"Ruru").length,1);
 });
-test("saving deducts the wallet and increases the named account exactly once",()=>{
+test("recording savings preserves the wallet and increases the named account exactly once",()=>{
  const state=fresh();const after=applyNamedSavings(state,contribution());
- assert.equal(walletBalance(after,"Ruru","BDO"),800);assert.equal(walletBalance(after,"Joselle","BDO"),700);
+ assert.equal(walletBalance(after,"Ruru","BDO"),1000);assert.equal(walletBalance(after,"Joselle","BDO"),700);
  assert.equal(after.savingsGoals[0].currentSavings,200);assert.equal(after.savingsGoals[0].contributionThisCutoff,200);assert.equal(totalSavings(after),200);
  assert.equal(applyNamedSavings(after,contribution()),after);
  const tx=buildTransactions(after).find(t=>t.type==="Savings Contribution");assert.equal(tx.description,"Emergency");assert.equal(tx.amount,200);
@@ -23,8 +23,15 @@ test("saving deducts the wallet and increases the named account exactly once",()
 test("combined savings can receive contributions from both owners",()=>{
  const first=applyNamedSavings(fresh(),contribution({goalId:"combined"}));
  const after=applyNamedSavings(first,contribution({id:"second",goalId:"combined",person:"Joselle",amount:100}));
- assert.equal(after.savingsGoals[2].currentSavings,300);assert.equal(walletBalance(after,"Ruru","BDO"),800);assert.equal(walletBalance(after,"Joselle","BDO"),600);assert.equal(totalSavings(after),300);
+ assert.equal(after.savingsGoals[2].currentSavings,300);assert.equal(walletBalance(after,"Ruru","BDO"),1000);assert.equal(walletBalance(after,"Joselle","BDO"),700);assert.equal(totalSavings(after),300);
 });
-test("invalid, mismatched, or unaffordable contributions leave balances unchanged",()=>{
- const state=fresh();for(const override of [{person:"Joselle"},{goalId:"missing"},{paymentMethod:"Cash"},{amount:0},{amount:-1},{amount:NaN},{amount:1.001},{amount:1001},{date:""},{type:"Withdrawal"}]){const tx=contribution(override);assert.ok(namedSavingsError(state,tx));assert.equal(applyNamedSavings(state,tx),state);}
+test("invalid or mismatched contributions leave balances unchanged",()=>{
+ const state=fresh();for(const override of [{person:"Joselle"},{goalId:"missing"},{paymentMethod:"Cash"},{amount:0},{amount:-1},{amount:NaN},{amount:1.001},{date:""},{type:"Withdrawal"}]){const tx=contribution(override);assert.ok(namedSavingsError(state,tx));assert.equal(applyNamedSavings(state,tx),state);}
+});
+
+test("recording savings does not require wallet funds and preserves legacy deductions",()=>{
+ const state=fresh();state.incomes=[];
+ const after=JSON.parse(JSON.stringify(applyNamedSavings(state,contribution({amount:1500}))));
+ assert.equal(walletBalance(after,"Ruru","BDO"),0);assert.equal(totalSavings(after),1500);
+ state.savingsTransactions=[contribution()];assert.equal(walletBalance(state,"Ruru","BDO"),-200);
 });

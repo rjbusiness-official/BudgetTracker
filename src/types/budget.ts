@@ -177,6 +177,7 @@ export interface SavingsGoal {
 }
 
 export interface SavingsTransaction {
+  recordOnly?: boolean;
   person?: "Ruru" | "Joselle";
   paymentMethod?: PaymentMethod;
   id: string;
@@ -269,6 +270,7 @@ export interface DebtPlanSettings {
 }
 
 export interface FundTransfer {
+  toGoalId?: string;
   id: string;
   person: "Ruru" | "Joselle";
   fromMethod: PaymentMethod;

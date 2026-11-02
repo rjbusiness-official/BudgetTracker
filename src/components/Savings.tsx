@@ -5,7 +5,7 @@ import type { FormEvent } from "react";
 import { NavLink } from "react-router-dom";
 import { useBudget } from "@/src/context/BudgetContext";
 import type { SavingsOwner } from "@/src/types/budget";
-import { formatCurrency, formatShortDate, getActiveCutoff, getWalletMethods, savingsForOwner, walletBalance } from "@/src/utils/finance";
+import { formatCurrency, formatShortDate, getActiveCutoff, getWalletMethods, savingsForOwner } from "@/src/utils/finance";
 import { Button, Field, PageHeader, Panel, inputClass } from "./ui";
 
 const owners: SavingsOwner[] = ["Ruru", "Joselle", "Combined"];
@@ -54,7 +54,7 @@ export function SavingsPage() {
   const goals = savingsForOwner(state,owner);
   const goal = goals.find(item=>item.id===goalId);
   const person = owner === "Combined" ? contributor : owner;
-  const available = goal?.paymentMethod ? walletBalance(state,person,goal.paymentMethod) : null;
+
   const history = state.savingsTransactions.filter(transaction=>goals.some(item=>item.id===transaction.goalId)).slice().sort((a,b)=>b.date.localeCompare(a.date));
   const submit = (event:FormEvent<HTMLFormElement>) => {
     event.preventDefault();setError("");setNotice("");
@@ -70,9 +70,9 @@ export function SavingsPage() {
       <Field label="Name of savings"><select className={inputClass} required value={goalId} onChange={event=>{setGoalId(event.target.value);setError("");setNotice("");}}><option value="" disabled>Select savings</option>{goals.map(item=><option key={item.id} value={item.id}>{item.name} · {item.paymentMethod}</option>)}</select></Field>
       {!goals.length && <p className="text-sm text-slate-500">No savings accounts for {owner}. Create one in Settings → Add new savings.</p>}
       {owner==="Combined" && <Field label="Contributed by"><select className={inputClass} value={contributor} onChange={event=>setContributor(event.target.value as "Ruru"|"Joselle")}><option>Ruru</option><option>Joselle</option></select></Field>}
-      {goal && <div className="rounded-2xl bg-[#e7f5ff] p-4 text-sm"><p>Saved at <strong>{goal.paymentMethod}</strong> · Savings balance <strong>{formatCurrency(goal.currentSavings)}</strong></p><p className="mt-1">Available from {person}'s {goal.paymentMethod} wallet: <strong>{formatCurrency(available || 0)}</strong></p></div>}
+      {goal && <div className="rounded-2xl bg-[#e7f5ff] p-4 text-sm"><p>Saved at <strong>{goal.paymentMethod}</strong> · Savings balance <strong>{formatCurrency(goal.currentSavings)}</strong></p></div>}
       <div className="grid gap-4 sm:grid-cols-2"><Field label="Amount"><input className={inputClass} required type="number" min="0.01" step="0.01" placeholder="0.00" value={amount} onChange={event=>setAmount(event.target.value)} /></Field><Field label="Date"><input className={inputClass} required type="date" value={date} onChange={event=>setDate(event.target.value)}/></Field></div>
-      <p className="text-sm text-slate-500">The amount moves from the contributor's available wallet balance into this savings account.</p>
+      <p className="text-sm text-slate-500">This records money already in savings. Your wallet balance stays unchanged. Use Transfer Funds to move money from a wallet.</p>
       {error && <p role="alert" className="text-sm text-rose-700">{error}</p>}{notice && <p role="status" className="text-sm text-emerald-700">{notice}</p>}
       <Button type="submit" className="w-fit" disabled={sync.isLoading || !goal}>Record savings</Button>
     </form></Panel>

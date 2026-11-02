@@ -261,7 +261,7 @@ export const buildTransactions = (state: BudgetState): Transaction[] => {
     return [{ id: "tx-" + allocation.id, date: income.date, description: category + " allocation", type: "Salary Allocation" as const, category, person: income.person === "Husband" ? "Ruru" : income.person === "Wife" ? "Joselle" : "Shared Money", amount: allocation.amount, cutoffId: income.cutoffId }];
   });
   const transferTx: Transaction[] = (state.fundTransfers || []).map(transfer => ({
-    id: "tx-" + transfer.id, date: transfer.date, description: transfer.fromMethod + " → " + transfer.toMethod, type: "Fund Transfer", category: "Wallet Transfer", person: transfer.person, amount: transfer.amount, cutoffId: transfer.cutoffId
+    id: "tx-" + transfer.id, date: transfer.date, description: transfer.fromMethod + " → " + (transfer.toGoalId ? state.savingsGoals.find(goal => goal.id === transfer.toGoalId)?.name || "Savings" : transfer.toMethod), type: "Fund Transfer", category: "Wallet Transfer", person: transfer.person, amount: transfer.amount, cutoffId: transfer.cutoffId
   }));
   return [...incomeTx, ...expenseTx, ...debtTx, ...savingsTx, ...salarySavingsTx, ...allocationTx, ...transferTx].sort((a, b) => b.date.localeCompare(a.date));
 };
@@ -326,9 +326,9 @@ export const walletBalance = (state: BudgetState, person: "Ruru" | "Joselle", me
   const owner = person === "Ruru" ? "Husband" : "Wife";
   const incoming = state.incomes.filter(i => i.person === owner && i.paymentMethod === method).reduce((n, i) => n + Math.round(i.amount * 100), 0);
   const outgoing = state.expenses.filter(e => e.paidBy === person && e.paymentMethod === method).reduce((n, e) => n + Math.round(e.amount * 100), 0);
-  const savings = state.savingsTransactions.filter(t => t.person === person && t.paymentMethod === method).reduce((n, t) => n + (t.type === "Withdrawal" ? 1 : -1) * Math.round(t.amount * 100), 0);
+  const savings = state.savingsTransactions.filter(t => !t.recordOnly && t.person === person && t.paymentMethod === method).reduce((n, t) => n + (t.type === "Withdrawal" ? 1 : -1) * Math.round(t.amount * 100), 0);
   const debtPaid = (state.debtPayments || []).filter(payment => payment.person === person && payment.paymentMethod === method).reduce((sum, payment) => sum + Math.round(payment.amount * 100), 0);
-  const transfers = (state.fundTransfers || []).filter(transfer => transfer.person === person).reduce((total, transfer) => total + (transfer.toMethod === method ? Math.round(transfer.amount * 100) : 0) - (transfer.fromMethod === method ? Math.round(transfer.amount * 100) : 0), 0);
+  const transfers = (state.fundTransfers || []).filter(transfer => transfer.person === person).reduce((total, transfer) => total + (!transfer.toGoalId && transfer.toMethod === method ? Math.round(transfer.amount * 100) : 0) - (transfer.fromMethod === method ? Math.round(transfer.amount * 100) : 0), 0);
   return (incoming - outgoing + savings - debtPaid + transfers - Math.round(walletSalaryAllocations(state, person, method) * 100)) / 100;
 };
 
@@ -391,7 +391,9 @@ export const allWalletMethods = (state: BudgetState) => normalizeWalletMethods([
 export const fundTransferError = (state: BudgetState, transfer: Omit<FundTransfer, "id">): string => {
   if (!["Ruru", "Joselle"].includes(transfer.person)) return "Choose whose funds to transfer.";
   if (!getWalletMethods(state).includes(transfer.fromMethod) || !getWalletMethods(state).includes(transfer.toMethod)) return "Choose a source and destination wallet.";
-  if (transfer.fromMethod === transfer.toMethod) return "Choose different source and destination wallets.";
+  const goal = transfer.toGoalId ? state.savingsGoals.find(item => item.id === transfer.toGoalId) : undefined;
+  if (transfer.toGoalId && (!goal?.owner || goal.paymentMethod !== transfer.toMethod || (goal.owner !== "Combined" && goal.owner !== transfer.person))) return "Choose your own or combined savings account.";
+  if (!transfer.toGoalId && transfer.fromMethod === transfer.toMethod) return "Choose different source and destination wallets.";
   if (!Number.isFinite(transfer.amount) || transfer.amount <= 0 || Math.abs(transfer.amount * 100 - Math.round(transfer.amount * 100)) > 0.000001) return "Enter a positive amount with up to two decimal places.";
   if (!/^\d{4}-\d{2}-\d{2}$/.test(transfer.date) || !Number.isFinite(Date.parse(transfer.date))) return "Choose a valid transfer date.";
   if (Math.round(transfer.amount * 100) > Math.round(walletBalance(state, transfer.person, transfer.fromMethod) * 100)) return "The source wallet has insufficient available funds.";
@@ -400,6 +402,10 @@ export const fundTransferError = (state: BudgetState, transfer: Omit<FundTransfe
 
 export const applyFundTransfer = (state: BudgetState, transfer: FundTransfer): BudgetState => {
   if (fundTransferError(state, transfer) || (state.fundTransfers || []).some(item => item.id === transfer.id)) return state;
+  if (transfer.toGoalId) {
+    const transaction = { id: transfer.id, goalId: transfer.toGoalId, person: transfer.person, paymentMethod: transfer.fromMethod, amount: transfer.amount, date: transfer.date, cutoffId: transfer.cutoffId, type: "Contribution" as const, recordOnly: true, notes: transfer.notes };
+    return { ...state, fundTransfers: [transfer, ...(state.fundTransfers || [])], savingsTransactions: [transaction, ...state.savingsTransactions], savingsGoals: state.savingsGoals.map(goal => goal.id === transfer.toGoalId ? { ...goal, currentSavings: Math.round((goal.currentSavings + transfer.amount) * 100) / 100, contributionThisCutoff: Math.round((goal.contributionThisCutoff + transfer.amount) * 100) / 100 } : goal) };
+  }
   return { ...state, fundTransfers: [transfer, ...(state.fundTransfers || [])] };
 };
 
@@ -415,11 +421,10 @@ export const namedSavingsError = (state: BudgetState, transaction: Omit<import("
   if (!getWalletMethods(state).includes(goal.paymentMethod)) return "Add this bank or wallet in Settings before contributing.";
   if (!Number.isFinite(transaction.amount) || transaction.amount <= 0 || Math.abs(transaction.amount * 100 - Math.round(transaction.amount * 100)) > 0.000001) return "Enter a positive amount with up to two decimal places.";
   if (!/^\d{4}-\d{2}-\d{2}$/.test(transaction.date) || !Number.isFinite(Date.parse(transaction.date))) return "Choose a valid date.";
-  if (Math.round(transaction.amount * 100) > Math.round(walletBalance(state, transaction.person, goal.paymentMethod) * 100)) return "There are insufficient available funds in the selected bank or wallet.";
   return "";
 };
 
 export const applyNamedSavings = (state: BudgetState, transaction: import("@/src/types/budget").SavingsTransaction): BudgetState => {
   if (namedSavingsError(state, transaction) || state.savingsTransactions.some(item => item.id === transaction.id)) return state;
-  return { ...state, savingsTransactions: [transaction, ...state.savingsTransactions], savingsGoals: state.savingsGoals.map(goal => goal.id === transaction.goalId ? { ...goal, currentSavings: Math.round((goal.currentSavings + transaction.amount) * 100) / 100, contributionThisCutoff: Math.round((goal.contributionThisCutoff + transaction.amount) * 100) / 100 } : goal) };
+  return { ...state, savingsTransactions: [{ ...transaction, recordOnly: true }, ...state.savingsTransactions], savingsGoals: state.savingsGoals.map(goal => goal.id === transaction.goalId ? { ...goal, currentSavings: Math.round((goal.currentSavings + transaction.amount) * 100) / 100, contributionThisCutoff: Math.round((goal.contributionThisCutoff + transaction.amount) * 100) / 100 } : goal) };
 };
