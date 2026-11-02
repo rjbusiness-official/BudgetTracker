@@ -1,8 +1,10 @@
 ﻿"use client";
 
-import type { ReactNode } from "react";
+import { useEffect, useRef, useState } from "react";
+import type { ReactNode, MouseEvent } from "react";
+import { useBudgetSync } from "@/src/context/BudgetContext";
 import type { LucideIcon } from "lucide-react";
-import { X } from "lucide-react";
+import { LoaderCircle, X } from "lucide-react";
 import { formatCurrency } from "@/src/utils/finance";
 
 export const cn = (...classes: Array<string | false | null | undefined>) => classes.filter(Boolean).join(" ");
@@ -99,16 +101,53 @@ export function Button({
   className,
   onClick,
   disabled,
-  title
+  title,
+  confirm,
+  loading = false
 }: {
   children: ReactNode;
   type?: "button" | "submit" | "reset";
   variant?: "primary" | "secondary" | "ghost" | "danger";
   className?: string;
-  onClick?: () => void;
+  onClick?: () => void | Promise<void>;
   disabled?: boolean;
   title?: string;
+  confirm?: string | false;
+  loading?: boolean;
 }) {
+  const sync = useBudgetSync();
+  const locked = useRef(false);
+  const [running, setRunning] = useState(false);
+  const [active, setActive] = useState(false);
+  const busy = running || loading || (active && Boolean(sync?.isSaving));
+  useEffect(() => {
+    if (running || sync?.isSaving) return;
+    const frame = requestAnimationFrame(() => setActive(false));
+    return () => cancelAnimationFrame(frame);
+  }, [running, sync?.isSaving]);
+  const handleClick = async (event: MouseEvent<HTMLButtonElement>) => {
+    event.preventDefault();
+    if (locked.current || busy || disabled) return;
+    const button = event.currentTarget;
+    const form = button.form;
+    if (type === "submit" && form && !form.reportValidity()) return;
+    const message = confirm === false ? "" : confirm ?? (type === "submit" ? "Save these changes? Please review the details before confirming." : "");
+    if (message && !window.confirm(message)) return;
+    locked.current = true;
+    setRunning(true);
+    setActive(true);
+    try {
+      // Let the spinner paint before running synchronous record updates.
+      await new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
+      await onClick?.();
+      if (type === "submit" && form?.isConnected) form.requestSubmit(button);
+      if (type === "reset") form?.reset();
+    } finally {
+      await new Promise<void>(resolve => requestAnimationFrame(() => resolve()));
+      locked.current = false;
+      setRunning(false);
+    }
+  };
   const cls = {
     primary: "bg-[#1e1e29] text-white shadow-sm hover:bg-[#343442]",
     secondary: "border border-transparent bg-[#f1f1f3] text-[#292934] hover:bg-[#e4e0f5]",
@@ -116,8 +155,9 @@ export function Button({
     danger: "bg-[#ef5d7a] text-white hover:bg-[#d94f6c]"
   }[variant];
   return (
-    <button type={type} className={cn("inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl px-3 py-2 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-50", cls, className)} onClick={onClick} disabled={disabled} title={title}>
-      {children}
+    <button type={type} className={cn("inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl px-3 py-2 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-50", cls, className)} onClick={handleClick} disabled={disabled || busy} aria-busy={busy} title={title}>
+      {busy && <LoaderCircle size={17} className="animate-spin" aria-hidden="true" />}
+      <span>{busy ? "Processing…" : children}</span>
     </button>
   );
 }

@@ -670,3 +670,5 @@ export const useBudget = () => {
   if (!value) throw new Error("useBudget must be used inside BudgetProvider");
   return value;
 };
+
+export const useBudgetSync = () => useContext(BudgetContext)?.sync;

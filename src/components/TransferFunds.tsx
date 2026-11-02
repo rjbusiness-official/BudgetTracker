@@ -45,7 +45,7 @@ export default function TransferFunds() {
       <p className="text-sm text-slate-500">Wallet transfers move money between wallets. Transfers to savings deduct the source wallet and increase the selected savings balance.</p>
       {error && <p role="alert" className="text-sm text-rose-700">{error}</p>}
       {notice && <p role="status" className="text-sm text-emerald-700">{notice}</p>}
-      <Button type="submit" className="w-fit" disabled={sync.isLoading || !from || !to || from===to || available<=0}><ArrowRightLeft size={17}/>Transfer funds</Button>
+      <Button confirm={"Transfer " + formatCurrency(Number(amount)) + " from " + person + "’s " + from + " to " + destination + "?"} type="submit" className="w-fit" disabled={sync.isLoading || !from || !to || from===to || available<=0}><ArrowRightLeft size={17}/>Transfer funds</Button>
     </form></Panel>
     <Panel><h2 className="text-lg font-semibold">Transfer history</h2><div className="mt-4 grid gap-3">{history.map(transfer=><div key={transfer.id} className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[#ececf1] p-4"><div><p className="font-semibold">{transfer.fromMethod} → {transfer.toGoalId ? state.savingsGoals.find(item=>item.id===transfer.toGoalId)?.name || "Savings" : transfer.toMethod}</p><p className="text-sm text-slate-500">{transfer.person} · {formatShortDate(transfer.date)}</p>{transfer.notes && <p className="mt-1 text-sm text-slate-600">{transfer.notes}</p>}</div><span className="font-semibold">{formatCurrency(transfer.amount)}</span></div>)}{!history.length && <EmptyState title="No transfers yet" description="Your wallet transfers will appear here." />}</div></Panel>
   </div>;
