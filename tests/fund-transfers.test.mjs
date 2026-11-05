@@ -51,3 +51,33 @@ test("wallet to savings deducts once, supports the same bank, and persists", () 
  for(const override of [{toGoalId:"missing"},{amount:1001},{toMethod:"Cash"}]) assert.equal(applyFundTransfer(state,{...input,...override}),state);
  state.savingsGoals[0].owner="Joselle";assert.equal(applyFundTransfer(state,input),state);
 });
+
+test("savings to wallet moves only the requested amount and survives reload without duplicate activity", () => {
+ const state=fresh(); state.savingsGoals=[{id:"goal",name:"Emergency",owner:"Combined",paymentMethod:"BDO",currentSavings:500,contributionThisCutoff:50}];
+ const input=transfer({fromGoalId:"goal",amount:125.25});
+ assert.equal(fundTransferError(state,input),"");
+ const after=JSON.parse(JSON.stringify(applyFundTransfer(state,input)));
+ assert.equal(after.savingsGoals[0].currentSavings,374.75); assert.equal(after.savingsGoals[0].contributionThisCutoff,50);
+ assert.equal(walletBalance(after,"Ruru","BDO"),1000); assert.equal(walletBalance(after,"Ruru","Cash"),125.25);
+ assert.equal(walletBalance(after,"Joselle","Cash"),0);
+ assert.equal(totalSavings(after),374.75);assert.equal(totalIncome(after.incomes),1000);assert.equal(actualSpend(after.expenses),0);
+ assert.equal(after.savingsTransactions.length,1);
+ const activity=buildTransactions(after);assert.equal(activity.filter(tx=>tx.id==="tx-transfer").length,1);assert.equal(activity.find(tx=>tx.type==="Fund Transfer").description,"Emergency \u2192 Cash");
+ assert.equal(applyFundTransfer(after,input),after);assert.equal(state.savingsGoals[0].currentSavings,500);
+ const emptied=applyFundTransfer(after,transfer({id:"empty",fromGoalId:"goal",toMethod:"BDO",amount:374.75}));
+ assert.equal(emptied.savingsGoals[0].currentSavings,0);assert.equal(walletBalance(emptied,"Ruru","BDO"),1374.75);
+});
+
+test("savings transfers reject overspending, other owners, missing accounts and savings destinations", () => {
+ const state=fresh();state.savingsGoals=[{id:"goal",owner:"Ruru",paymentMethod:"BDO",currentSavings:100,contributionThisCutoff:0}];
+ for(const override of [{amount:100.01},{amount:0},{amount:1.001},{amount:NaN},{fromGoalId:"missing"},{fromMethod:"Cash"},{person:"Joselle"},{toGoalId:"goal",toMethod:"BDO"},{toMethod:"Unknown"},{date:""}]) {
+  const input=transfer({fromGoalId:"goal",amount:100,...override});assert.ok(fundTransferError(state,input));assert.equal(applyFundTransfer(state,input),state);
+ }
+});
+
+test("wallet to savings to wallet conserves the original funds", () => {
+ const state=fresh();state.savingsGoals=[{id:"goal",name:"Emergency",owner:"Ruru",paymentMethod:"BDO",currentSavings:0,contributionThisCutoff:0}];
+ const funded=applyFundTransfer(state,transfer({toGoalId:"goal",toMethod:"BDO"}));
+ const after=applyFundTransfer(funded,transfer({id:"return",fromGoalId:"goal",toMethod:"BDO"}));
+ assert.equal(walletBalance(after,"Ruru","BDO"),1000);assert.equal(totalSavings(after),0);
+});

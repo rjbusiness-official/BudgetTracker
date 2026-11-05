@@ -15,6 +15,8 @@ export default function TransferFunds() {
   const [from, setFrom] = useState<PaymentMethod>(() => transferMethods.includes("BDO") ? "BDO" : transferMethods[0] || "");
   const [to, setTo] = useState<PaymentMethod>(() => transferMethods.find(method => method !== from) || "");
   const savings = state.savingsGoals.filter(goal => goal.owner === person || goal.owner === "Combined");
+  const sourceGoal = from.startsWith("savings:") ? savings.find(item => item.id === from.slice(8)) : undefined;
+  const source = sourceGoal ? sourceGoal.name + " (Savings)" : from;
   const goal = to.startsWith("savings:") ? savings.find(item => item.id === to.slice(8)) : undefined;
   const destination = goal ? goal.name + " (Savings)" : to;
   const [amount, setAmount] = useState("");
@@ -22,31 +24,31 @@ export default function TransferFunds() {
   const [notes, setNotes] = useState("");
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
-  const available = walletBalance(state, person, from);
+  const available = sourceGoal ? sourceGoal.currentSavings : walletBalance(state, person, from);
   const history = (state.fundTransfers || []).slice().sort((a,b) => b.date.localeCompare(a.date));
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault(); setError(""); setNotice("");
-    const result = actions.transferFunds({person,fromMethod:from,toMethod:goal?.paymentMethod || to,toGoalId:goal?.id,amount:Number(amount),date,cutoffId:getActiveCutoff(state).id,notes:notes.trim()});
+    const result = actions.transferFunds({person,fromMethod:sourceGoal?.paymentMethod || from,fromGoalId:sourceGoal?.id,toMethod:goal?.paymentMethod || to,toGoalId:goal?.id,amount:Number(amount),date,cutoffId:getActiveCutoff(state).id,notes:notes.trim()});
     if (result) { setError(result); return; }
-    setNotice(formatCurrency(Number(amount)) + " transferred from " + from + " to " + destination + " for " + person + ".");
+    setNotice(formatCurrency(Number(amount)) + " transferred from " + source + " to " + destination + " for " + person + ".");
     setAmount(""); setNotes("");
   };
   return <div className="mx-auto grid max-w-3xl gap-5">
-    <PageHeader title="Transfer Funds" description="Move money between wallets or from a wallet to savings." />
+    <PageHeader title="Transfer Funds" description="Move money between wallets, from a wallet to savings, or from savings to a wallet." />
     <Panel>{!transferMethods.length && <p className="mb-4 text-sm text-slate-600">Add an account in Settings → Banks, Wallets &amp; Cash to transfer funds.</p>}<form onSubmit={submit} className="grid gap-4">
-      <Field label="Whose funds?"><select className={inputClass} value={person} onChange={event=>{setPerson(event.target.value as FundTransfer["person"]);setNotice("");setError("");}}><option>Ruru</option><option>Joselle</option></select></Field>
+      <Field label="Whose funds?"><select className={inputClass} value={person} onChange={event=>{setPerson(event.target.value as FundTransfer["person"]);if(from.startsWith("savings:"))setFrom("");if(to.startsWith("savings:"))setTo("");setNotice("");setError("");}}><option>Ruru</option><option>Joselle</option></select></Field>
       <div className="grid gap-4 sm:grid-cols-2">
-        <Field label="From wallet"><select className={inputClass} required value={from} onChange={event=>{setFrom(event.target.value as PaymentMethod);setError("");setNotice("");}}><option value="" disabled>Select account</option>{transferMethods.map(method=><option key={method}>{method}</option>)}</select></Field>
-        <Field label="To wallet or savings"><select className={inputClass} required value={to} onChange={event=>{setTo(event.target.value as PaymentMethod);setError("");setNotice("");}}><option value="" disabled>Select account</option>{transferMethods.map(method=><option key={method} disabled={method===from}>{method}</option>)}{savings.map(item=><option key={item.id} value={"savings:"+item.id}>{item.owner} · {item.name} (Savings · {item.paymentMethod})</option>)}</select></Field>
+        <Field label="From wallet or savings"><select className={inputClass} required value={from} onChange={event=>{setFrom(event.target.value as PaymentMethod);if(event.target.value.startsWith("savings:") && to.startsWith("savings:"))setTo("");setError("");setNotice("");}}><option value="" disabled>Select account</option>{transferMethods.map(method=><option key={method}>{method}</option>)}{savings.map(item=><option key={item.id} value={"savings:"+item.id}>{item.owner} · {item.name} (Savings · {item.paymentMethod})</option>)}</select></Field>
+        <Field label="To wallet or savings"><select className={inputClass} required value={to} onChange={event=>{setTo(event.target.value as PaymentMethod);setError("");setNotice("");}}><option value="" disabled>Select account</option>{transferMethods.map(method=><option key={method} disabled={!sourceGoal && method===from}>{method}</option>)}{savings.map(item=><option disabled={from.startsWith("savings:")} key={item.id} value={"savings:"+item.id}>{item.owner} · {item.name} (Savings · {item.paymentMethod})</option>)}</select></Field>
       </div>
-      <div className="rounded-2xl bg-[#e7f5ff] p-4 text-sm"><p>Available in {from}: <strong>{formatCurrency(available)}</strong></p><p className="mt-1 text-slate-600">Current {destination} balance: {formatCurrency(goal ? goal.currentSavings : walletBalance(state,person,to))}</p></div>
+      <div className="rounded-2xl bg-[#e7f5ff] p-4 text-sm"><p>Available in {source}: <strong>{formatCurrency(available)}</strong></p><p className="mt-1 text-slate-600">Current {destination} balance: {formatCurrency(goal ? goal.currentSavings : walletBalance(state,person,to))}</p></div>
       <div className="grid gap-4 sm:grid-cols-2"><Field label="Amount"><input className={inputClass} required type="number" min="0.01" step="0.01" value={amount} onChange={event=>setAmount(event.target.value)} placeholder="0.00" /></Field><Field label="Date"><input className={inputClass} required type="date" value={date} onChange={event=>setDate(event.target.value)} /></Field></div>
       <Field label="Comment (optional)"><input className={inputClass} value={notes} onChange={event=>setNotes(event.target.value)} /></Field>
-      <p className="text-sm text-slate-500">Wallet transfers move money between wallets. Transfers to savings deduct the source wallet and increase the selected savings balance.</p>
+      <p className="text-sm text-slate-500">Wallet transfers move money between wallets. Transfers to savings deduct the source wallet and increase the selected savings balance. Transfers from savings reduce savings and credit the destination wallet without counting as income or spending.</p>
       {error && <p role="alert" className="text-sm text-rose-700">{error}</p>}
       {notice && <p role="status" className="text-sm text-emerald-700">{notice}</p>}
-      <Button confirm={"Transfer " + formatCurrency(Number(amount)) + " from " + person + "’s " + from + " to " + destination + "?"} type="submit" className="w-fit" disabled={sync.isLoading || !from || !to || from===to || available<=0}><ArrowRightLeft size={17}/>Transfer funds</Button>
+      <Button confirm={"Transfer " + formatCurrency(Number(amount)) + " from " + person + "’s " + source + " to " + destination + "?"} type="submit" className="w-fit" disabled={sync.isLoading || !from || !to || from===to || available<=0}><ArrowRightLeft size={17}/>Transfer funds</Button>
     </form></Panel>
-    <Panel><h2 className="text-lg font-semibold">Transfer history</h2><div className="mt-4 grid gap-3">{history.map(transfer=><div key={transfer.id} className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[#ececf1] p-4"><div><p className="font-semibold">{transfer.fromMethod} → {transfer.toGoalId ? state.savingsGoals.find(item=>item.id===transfer.toGoalId)?.name || "Savings" : transfer.toMethod}</p><p className="text-sm text-slate-500">{transfer.person} · {formatShortDate(transfer.date)}</p>{transfer.notes && <p className="mt-1 text-sm text-slate-600">{transfer.notes}</p>}</div><span className="font-semibold">{formatCurrency(transfer.amount)}</span></div>)}{!history.length && <EmptyState title="No transfers yet" description="Your wallet transfers will appear here." />}</div></Panel>
+    <Panel><h2 className="text-lg font-semibold">Transfer history</h2><div className="mt-4 grid gap-3">{history.map(transfer=><div key={transfer.id} className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[#ececf1] p-4"><div><p className="font-semibold">{transfer.fromGoalId ? state.savingsGoals.find(item=>item.id===transfer.fromGoalId)?.name || transfer.fromGoalName || "Savings" : transfer.fromMethod} → {transfer.toGoalId ? state.savingsGoals.find(item=>item.id===transfer.toGoalId)?.name || "Savings" : transfer.toMethod}</p><p className="text-sm text-slate-500">{transfer.person} · {formatShortDate(transfer.date)}</p>{transfer.notes && <p className="mt-1 text-sm text-slate-600">{transfer.notes}</p>}</div><span className="font-semibold">{formatCurrency(transfer.amount)}</span></div>)}{!history.length && <EmptyState title="No transfers yet" description="Your wallet and savings transfers will appear here." />}</div></Panel>
   </div>;
 }

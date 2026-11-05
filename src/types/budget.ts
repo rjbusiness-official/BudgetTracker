@@ -283,6 +283,8 @@ export interface DebtPlanSettings {
 }
 
 export interface FundTransfer {
+  fromGoalId?: string;
+  fromGoalName?: string;
   toGoalId?: string;
   id: string;
   person: "Ruru" | "Joselle";
