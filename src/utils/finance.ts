@@ -195,7 +195,8 @@ export const totalSavings = (state: BudgetState) => {
 };
 
 export const buildTransactions = (state: BudgetState): Transaction[] => {
-  const incomeTx: Transaction[] = state.incomes.map((income) => ({
+  const linkedRepaymentIncomeIds = new Set((state.receivablePayments || []).map(p => p.incomeId).filter(Boolean));
+  const incomeTx: Transaction[] = state.incomes.filter(income => !linkedRepaymentIncomeIds.has(income.id)).map((income) => ({
     id: "tx-" + income.id,
     date: income.date,
     description: income.source,
@@ -285,7 +286,32 @@ export const migrateLendingExpenses = (state: BudgetState): BudgetState => {
     }
     return false;
   });
-  return {...state,expenses,receivables,receivablePayments:state.receivablePayments || []};
+  return reconcileRenzRepayment({...state,expenses,receivables,receivablePayments:state.receivablePayments || []});
+};
+
+// This historical payment was already credited through Money In. Link it rather
+// than depositing it again. Only reconcile the explicitly identified borrower.
+export const reconcileRenzRepayment = (state: BudgetState): BudgetState => {
+  const loans = (state.receivables || []).filter(r => r.borrowerName.trim().toLowerCase() === "renz");
+  if (loans.length !== 1) return state;
+  const loan = loans[0];
+  let next = state;
+  for (const income of state.incomes) {
+    if ((income.source || "").trim().toLowerCase() !== "payment of renz" ||
+        (next.receivablePayments || []).some(p => p.incomeId === income.id) ||
+        income.date.slice(0,10) < loan.date.slice(0,10) ||
+        !Number.isFinite(income.amount) || income.amount <= 0) continue;
+    const balance = receivableBalance(next,loan.id);
+    // An existing repayment may already represent this deposit; don't guess.
+    if (balance <= 0 || (next.receivablePayments || []).some(p => p.receivableId === loan.id && !p.incomeId)) continue;
+    const amount = Math.min(Math.round(income.amount*100),Math.round(balance*100))/100;
+    next = {...next,receivablePayments:[...(next.receivablePayments || []),{
+      id:"repayment-income-"+income.id,incomeId:income.id,receivableId:loan.id,amount,
+      person:income.person === "Wife" ? "Joselle" : "Ruru",paymentMethod:income.paymentMethod || "",
+      date:income.date,cutoffId:income.cutoffId
+    }]};
+  }
+  return next;
 };
 
 const validReceivableAmount = (amount: number) => Number.isFinite(amount) && amount > 0 && Math.abs(amount * 100 - Math.round(amount * 100)) < 0.000001;
@@ -391,7 +417,7 @@ export const walletBalance = (state: BudgetState, person: "Ruru" | "Joselle", me
   const debtPaid = (state.debtPayments || []).filter(payment => payment.person === person && payment.paymentMethod === method).reduce((sum, payment) => sum + Math.round(payment.amount * 100), 0);
   const transfers = (state.fundTransfers || []).filter(transfer => transfer.person === person).reduce((total, transfer) => total + (!transfer.toGoalId && transfer.toMethod === method ? Math.round(transfer.amount * 100) : 0) - (!transfer.fromGoalId && transfer.fromMethod === method ? Math.round(transfer.amount * 100) : 0), 0);
   const lent = (state.receivables || []).filter(r => !r.goalId && r.person === person && r.paymentMethod === method).reduce((n,r) => n + Math.round(r.amount * 100), 0);
-  const repaid = (state.receivablePayments || []).filter(r => !r.goalId && r.person === person && r.paymentMethod === method).reduce((n,r) => n + Math.round(r.amount * 100), 0);
+  const repaid = (state.receivablePayments || []).filter(r => !r.incomeId && !r.goalId && r.person === person && r.paymentMethod === method).reduce((n,r) => n + Math.round(r.amount * 100), 0);
   return (incoming - outgoing + savings - debtPaid + transfers - lent + repaid - Math.round(walletSalaryAllocations(state, person, method) * 100)) / 100;
 };
 

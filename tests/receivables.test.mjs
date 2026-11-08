@@ -75,3 +75,30 @@ test("migration removes only lending expenses, preserves metadata, balances and 
  migrated.expenses[0].date="2026-11-08";
  assert.equal(buildTransactions(migrated).find(t=>t.id==="tx-receivable-old").type,"Receivable");
 });
+
+test("Payment of Renz settles the existing receivable without depositing money a second time",()=>{
+ const state=fresh();state.receivables=[loan({borrowerName:"Renz"})];
+ state.incomes.push({id:"renz-paid",source:"Payment of Renz",person:"Husband",paymentMethod:"Cash",amount:300,date:"2026-11-09",cutoffId:"current"});
+ const before=walletBalance(state,"Ruru","Cash");
+ const after=migrateLendingExpenses(state);
+ assert.equal(receivableBalance(after,"loan"),0);assert.equal(walletBalance(after,"Ruru","Cash"),before);
+ assert.equal(after.incomes.length,state.incomes.length);assert.equal(totalSavings(after),totalSavings(state));
+ assert.equal(after.receivablePayments[0].incomeId,"renz-paid");
+ assert.deepEqual(migrateLendingExpenses(after),after);
+ const activity=buildTransactions(after);
+ assert.equal(activity.filter(t=>t.type==="Receivable Repayment").length,1);
+ assert.ok(!activity.some(t=>t.id==="tx-renz-paid"));
+});
+
+test("Renz reconciliation handles partial payments and skips ambiguous or already recorded repayments",()=>{
+ const state=fresh();state.receivables=[loan({borrowerName:"Renz"})];
+ state.incomes.push({id:"renz-paid",source:"Payment of Renz",person:"Wife",paymentMethod:"BDO",amount:100,date:"2026-11-09"});
+ const partial=migrateLendingExpenses(state);
+ assert.equal(receivableBalance(partial,"loan"),200);assert.equal(walletBalance(partial,"Joselle","BDO"),100);
+ const ambiguous=migrateLendingExpenses({...state,receivables:[...state.receivables,loan({id:"other",borrowerName:"Renz"})]});
+ assert.equal(ambiguous.receivablePayments.length,0);
+ const existing=migrateLendingExpenses({...state,receivablePayments:[payment()]});
+ assert.equal(existing.receivablePayments.length,1);
+ const unrelated=migrateLendingExpenses({...state,incomes:[{...state.incomes[1],source:"Payment of Alex"}]});
+ assert.equal(unrelated.receivablePayments.length,0);
+});

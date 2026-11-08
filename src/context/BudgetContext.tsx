@@ -316,11 +316,11 @@ export function BudgetProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const updateIncome = useCallback((income: Income) => {
-    setState((current) => recalculateSalarySavingsRecords({ ...current, incomes: current.incomes.map((item) => item.id === income.id ? income : item) }));
+    setState((current) => recalculateSalarySavingsRecords(migrateLendingExpenses({ ...current, receivablePayments: (current.receivablePayments || []).filter(p => p.incomeId !== income.id), incomes: current.incomes.map((item) => item.id === income.id ? income : item) })));
   }, []);
 
   const deleteIncome = useCallback((id: string) => {
-    setState((current) => recalculateSalarySavingsRecords({ ...current, incomes: current.incomes.filter((item) => item.id !== id), salaryAllocations: current.salaryAllocations.filter((allocation) => allocation.incomeId !== id) }));
+    setState((current) => recalculateSalarySavingsRecords({ ...current, receivablePayments: (current.receivablePayments || []).filter(p => p.incomeId !== id), incomes: current.incomes.filter((item) => item.id !== id), salaryAllocations: current.salaryAllocations.filter((allocation) => allocation.incomeId !== id) }));
   }, []);
 
   const setSalaryAllocation = useCallback((incomeId: string, category: string, amount: number) => {
