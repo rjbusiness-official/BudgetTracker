@@ -8,14 +8,14 @@ import { Button, Field, PageHeader, Panel, inputClass } from "./ui";
 
 const today = () => new Intl.DateTimeFormat("en-CA", {timeZone:"Asia/Manila",year:"numeric",month:"2-digit",day:"2-digit"}).format(new Date());
 
-export function ReceivablesSummary() {
+export function ReceivablesSummary({activeOnly = false}: {activeOnly?: boolean}) {
   const {state} = useBudget();
-  const records = state.receivables || [];
+  const records = (state.receivables || []).filter(record => !activeOnly || receivableBalance(state,record.id) > 0);
   const outstanding = records.reduce((n,r)=>n+Math.round(receivableBalance(state,r.id)*100),0)/100;
   return <Panel><div className="flex flex-wrap items-center justify-between gap-3"><h2 className="text-lg font-semibold">Receivables · {formatCurrency(outstanding)}</h2><NavLink to="/receivables" className="text-sm font-semibold text-violet-700">Manage receivables</NavLink></div><div className="mt-4 grid gap-3">{records.map(record => {
     const balance = receivableBalance(state,record.id);
     return <div key={record.id} className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[#ececf1] p-4"><div><p className="font-semibold">{record.borrowerName}</p><p className="text-sm text-slate-500">Borrowed {formatCurrency(record.amount)} · {record.person} · {record.goalName || record.paymentMethod}</p><p className={balance > 0 && record.dueDate && record.dueDate < today() ? "text-sm text-rose-700" : "text-sm text-slate-500"}>{balance === 0 ? "Paid" : record.dueDate ? "Due " + formatShortDate(record.dueDate) : "No due date"}</p></div><span className="font-semibold">{formatCurrency(balance)} remaining</span></div>;
-  })}{!records.length && <p className="text-sm text-slate-500">No receivables recorded yet.</p>}</div></Panel>;
+  })}{!records.length && <p className="text-sm text-slate-500">{activeOnly ? "No active receivables." : "No receivables recorded yet."}</p>}</div></Panel>;
 }
 
 export default function ReceivablesPage() {

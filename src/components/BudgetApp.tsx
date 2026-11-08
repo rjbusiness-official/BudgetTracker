@@ -204,7 +204,7 @@ function DashboardPage() {
       })}</div>
       {!state.incomes.some(income => income.type === "Salary" || income.source === "Salary") && <p className="mt-3 text-sm text-slate-500">Save a salary allocation to see the breakdown here.</p>}
     </Panel>
-    <ReceivablesSummary />
+    <ReceivablesSummary activeOnly />
     <WalletBalances />
     <Panel>
       <h2 className="text-lg font-semibold">Recent activity</h2>
