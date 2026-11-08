@@ -345,6 +345,8 @@ export interface Receivable {
 }
 
 export interface ReceivablePayment {
+  goalId?: string;
+  goalName?: string;
   id: string;
   receivableId: string;
   amount: number;

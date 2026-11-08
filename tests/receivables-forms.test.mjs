@@ -48,3 +48,16 @@ test("selecting a borrower defaults to the outstanding amount and permits a smal
  tree=h.render("ReceivableRepaymentForm");h.nodes(tree).find(n=>n.type==="form").props.onSubmit({preventDefault(){}});
  assert.equal(h.calls[0].amount,75);assert.equal(h.calls[0].receivableId,"loan");assert.equal(h.calls[0].paymentMethod,"Cash");
 });
+
+test("repayment destination lists savings and submits the selected savings account",()=>{
+ const h=harness();let tree=h.render("ReceivableRepaymentForm");
+ const options=h.field(tree,"Receive into").props.children.flat();
+ assert.ok(options.some(n=>n.props?.value==="savings:goal"));
+ h.field(tree,"Borrower").props.onChange({target:{value:"loan"}});
+ h.field(tree,"Receive into").props.onChange({target:{value:"savings:goal"}});
+ tree=h.render("ReceivableRepaymentForm");
+ assert.equal(h.field(tree,"Receive for"),undefined);
+ h.nodes(tree).find(n=>n.type==="form").props.onSubmit({preventDefault(){}});
+ assert.equal(h.calls[0].goalId,"goal");assert.equal(h.calls[0].amount,200);
+ assert.equal(h.calls[0].paymentMethod,"");
+});

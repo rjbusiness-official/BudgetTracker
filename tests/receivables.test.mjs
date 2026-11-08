@@ -31,6 +31,26 @@ test("savings lending reduces savings without crediting or debiting any wallet",
  assert.equal(totalSavings(paid),200);assert.equal(walletBalance(paid,"Joselle","BDO"),300);
 });
 
+test("repayments into savings credit only the selected savings and survive reload without duplication",()=>{
+ const lent=applyReceivable(fresh(),loan());
+ const input=payment({goalId:"goal",paymentMethod:"",amount:125.25});
+ assert.equal(receivablePaymentError(lent,input),"");
+ const partial=JSON.parse(JSON.stringify(applyReceivablePayment(lent,input)));
+ assert.equal(receivableBalance(partial,"loan"),174.75);
+ assert.equal(totalSavings(partial),625.25);
+ assert.equal(walletBalance(partial,"Joselle","BDO"),0);
+ assert.equal(walletBalance(partial,"Ruru","Cash"),700);
+ assert.equal(totalIncome(partial.incomes),1000);
+ assert.equal(partial.receivablePayments[0].goalName,"Emergency");
+ assert.equal(applyReceivablePayment(partial,input),partial);
+ const final=applyReceivablePayment(partial,payment({id:"final",goalId:"goal",paymentMethod:"Cash",amount:174.75}));
+ assert.equal(receivableBalance(final,"loan"),0);assert.equal(totalSavings(final),800);
+ assert.equal(walletBalance(final,"Joselle","Cash"),0);
+ const invalid=payment({goalId:"deleted"});
+ assert.ok(receivablePaymentError(lent,invalid));assert.equal(applyReceivablePayment(lent,invalid),lent);
+ assert.equal(lent.savingsGoals[0].currentSavings,500);
+});
+
 test("optional dates and invalid accounts, amounts, dates, overpayments are validated",()=>{
  const state=fresh();assert.equal(receivableError(state,loan()),"");assert.equal(receivableError(state,loan({dueDate:"2026-12-01"})),"");
  for(const overrides of [{borrowerName:" "},{amount:0},{amount:NaN},{amount:1.001},{amount:1001},{goalId:"missing"},{goalId:"goal",amount:501},{paymentMethod:"unknown"},{person:"Shared Money"},{date:"2026-02-30"},{dueDate:""},{dueDate:"invalid"}]) {

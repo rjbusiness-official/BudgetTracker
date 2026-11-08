@@ -317,13 +317,16 @@ export const receivablePaymentError = (state: BudgetState, payment: Omit<import(
   if (!validReceivableAmount(payment.amount)) return "Enter a positive amount with up to two decimal places.";
   if (Math.round(payment.amount * 100) > Math.round(receivableBalance(state,payment.receivableId) * 100)) return "Payment cannot exceed the outstanding balance.";
   if (!validReceivableDate(payment.date)) return "Choose a valid payment date.";
-  if (!["Ruru","Joselle"].includes(payment.person) || !getWalletMethods(state).includes(payment.paymentMethod)) return "Choose a receiving wallet and its owner.";
+  if (payment.goalId) {
+    if (!state.savingsGoals.some(goal => goal.id === payment.goalId)) return "Choose an existing savings account.";
+  } else if (!["Ruru","Joselle"].includes(payment.person) || !getWalletMethods(state).includes(payment.paymentMethod)) return "Choose a receiving wallet and its owner.";
   return "";
 };
 
 export const applyReceivablePayment = (state: BudgetState, payment: import("@/src/types/budget").ReceivablePayment): BudgetState => {
   if ((state.receivablePayments || []).some(p => p.id === payment.id) || receivablePaymentError(state,payment)) return state;
-  return {...state,receivablePayments:[payment,...(state.receivablePayments || [])]};
+  const goal = state.savingsGoals.find(item => item.id === payment.goalId);
+  return {...state,receivablePayments:[{...payment,goalName:goal?.name},...(state.receivablePayments || [])],savingsGoals:state.savingsGoals.map(item => item.id === payment.goalId ? {...item,currentSavings:(Math.round(item.currentSavings*100)+Math.round(payment.amount*100))/100} : item)};
 };
 
 export const upcomingBills = (bills: Bill[], today: string) => {
@@ -388,7 +391,7 @@ export const walletBalance = (state: BudgetState, person: "Ruru" | "Joselle", me
   const debtPaid = (state.debtPayments || []).filter(payment => payment.person === person && payment.paymentMethod === method).reduce((sum, payment) => sum + Math.round(payment.amount * 100), 0);
   const transfers = (state.fundTransfers || []).filter(transfer => transfer.person === person).reduce((total, transfer) => total + (!transfer.toGoalId && transfer.toMethod === method ? Math.round(transfer.amount * 100) : 0) - (!transfer.fromGoalId && transfer.fromMethod === method ? Math.round(transfer.amount * 100) : 0), 0);
   const lent = (state.receivables || []).filter(r => !r.goalId && r.person === person && r.paymentMethod === method).reduce((n,r) => n + Math.round(r.amount * 100), 0);
-  const repaid = (state.receivablePayments || []).filter(r => r.person === person && r.paymentMethod === method).reduce((n,r) => n + Math.round(r.amount * 100), 0);
+  const repaid = (state.receivablePayments || []).filter(r => !r.goalId && r.person === person && r.paymentMethod === method).reduce((n,r) => n + Math.round(r.amount * 100), 0);
   return (incoming - outgoing + savings - debtPaid + transfers - lent + repaid - Math.round(walletSalaryAllocations(state, person, method) * 100)) / 100;
 };
 
@@ -442,7 +445,7 @@ export const allWalletMethods = (state: BudgetState) => normalizeWalletMethods([
   ...state.incomes.map(item => item.paymentMethod || ""),
   ...state.expenses.map(item => item.paymentMethod || ""),
   ...(state.receivables || []).filter(item => !item.goalId).map(item => item.paymentMethod || ""),
-  ...(state.receivablePayments || []).map(item => item.paymentMethod || ""),
+  ...(state.receivablePayments || []).filter(item => !item.goalId).map(item => item.paymentMethod || ""),
   ...state.savingsTransactions.map(item => item.paymentMethod || ""),
   ...(state.debtPayments || []).map(item => item.paymentMethod || ""),
   ...(state.fundTransfers || []).flatMap(item => [item.fromMethod, item.toMethod])
