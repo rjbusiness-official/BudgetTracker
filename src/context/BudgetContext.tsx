@@ -28,6 +28,8 @@ import { applySavingsDeletion, savingsDeletionError, applyNamedSavings, namedSav
 
 import { normalizeExpenseTypes } from "@/src/utils/expenseTypes";
 import { normalizeBillCategories } from "@/src/utils/monthlyBills";
+import { applyReceivable, applyReceivablePayment, receivableError, receivablePaymentError, migrateLendingExpenses } from "@/src/utils/finance";
+import type { Receivable, ReceivablePayment } from "@/src/types/budget";
 
 const storageKey = "budget-tracker-v4-ruru-joselle-empty";
 
@@ -38,6 +40,8 @@ interface SalaryWorkflowInput {
 }
 
 interface BudgetActions {
+  lendMoney: (record: Omit<Receivable, "id">) => string;
+  receiveReceivable: (payment: Omit<ReceivablePayment, "id">) => string;
   contributeToSavings: (transaction: Omit<SavingsTransaction, "id">) => string;
   setWalletMethods: (methods: string[]) => void;
   transferFunds: (transfer: Omit<FundTransfer, "id">) => string;
@@ -174,7 +178,8 @@ const recalculateSalarySavingsRecords = (state: BudgetState): BudgetState => {
     const nextSalary = salaries.slice(index + 1).find((income) => income.person === salary.person);
     if (!nextSalary) return;
     const allocated = salaryAllocationsFor(state, salary.id).reduce((sum, allocation) => sum + allocation.amount, 0);
-    const spent = expensesForSalaryPeriod(state, salary, nextSalary).reduce((sum, expense) => sum + expense.amount, 0);
+    const lent = (state.receivables || []).filter(r => !r.goalId && (r.person === "Ruru" ? "Husband" : r.person === "Joselle" ? "Wife" : "Shared") === salary.person && r.date >= salary.date && r.date < nextSalary.date).reduce((n,r)=>n+r.amount,0);
+    const spent = expensesForSalaryPeriod(state, salary, nextSalary).reduce((sum, expense) => sum + expense.amount, 0) + lent;
     const excess = Math.round(Math.max(0, salary.amount - allocated - spent) * 100) / 100;
     if (excess <= 0) return;
     records.push({
@@ -333,11 +338,11 @@ export function BudgetProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const addExpense = useCallback((expense: Omit<Expense, "id">) => {
-    setState((current) => recalculateSalarySavingsRecords({ ...current, expenses: [{ ...expense, id: uid("expense") }, ...current.expenses] }));
+    setState((current) => recalculateSalarySavingsRecords(migrateLendingExpenses({ ...current, expenses: [{ ...expense, id: uid("expense") }, ...current.expenses] })));
   }, []);
 
   const updateExpense = useCallback((expense: Expense) => {
-    setState((current) => recalculateSalarySavingsRecords({ ...current, expenses: current.expenses.map((item) => item.id === expense.id ? expense : item) }));
+    setState((current) => recalculateSalarySavingsRecords(migrateLendingExpenses({ ...current, expenses: current.expenses.map((item) => item.id === expense.id ? expense : item) })));
   }, []);
 
   const deleteExpense = useCallback((id: string) => {
@@ -583,7 +588,25 @@ export function BudgetProvider({ children }: { children: React.ReactNode }) {
     return "";
   }, [state]);
 
+  const lendMoney = useCallback((record: Omit<Receivable, "id">) => {
+    const error = receivableError(state, record);
+    if (error) return error;
+    const next = {...record, id:uid("receivable")};
+    setState(current => recalculateSalarySavingsRecords(applyReceivable(current,next)));
+    return "";
+  }, [state]);
+
+  const receiveReceivable = useCallback((payment: Omit<ReceivablePayment, "id">) => {
+    const error = receivablePaymentError(state,payment);
+    if (error) return error;
+    const next = {...payment,id:uid("repayment")};
+    setState(current => applyReceivablePayment(current,next));
+    return "";
+  }, [state]);
+
   const actions = useMemo<BudgetActions>(() => ({
+    lendMoney,
+    receiveReceivable,
     contributeToSavings,
     setWalletMethods,
     transferFunds,
@@ -626,6 +649,8 @@ export function BudgetProvider({ children }: { children: React.ReactNode }) {
     upsertFamilyShare,
     deleteFamilyShare
   }), [
+    lendMoney,
+    receiveReceivable,
     contributeToSavings,
     setWalletMethods,
     transferFunds,

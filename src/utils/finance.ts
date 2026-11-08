@@ -264,10 +264,67 @@ export const buildTransactions = (state: BudgetState): Transaction[] => {
   const transferTx: Transaction[] = (state.fundTransfers || []).map(transfer => ({
     id: "tx-" + transfer.id, date: transfer.date, description: (transfer.fromGoalId ? state.savingsGoals.find(goal => goal.id === transfer.fromGoalId)?.name || transfer.fromGoalName || "Savings" : transfer.fromMethod) + " → " + (transfer.toGoalId ? state.savingsGoals.find(goal => goal.id === transfer.toGoalId)?.name || "Savings" : transfer.toMethod), type: "Fund Transfer", category: "Wallet Transfer", person: transfer.person, amount: transfer.amount, cutoffId: transfer.cutoffId
   }));
-  return [...incomeTx, ...expenseTx, ...debtTx, ...savingsTx, ...salarySavingsTx, ...allocationTx, ...transferTx].sort((a, b) => b.date.localeCompare(a.date));
+  const lendingTx: Transaction[] = (state.receivables || []).map(r => ({id:"tx-"+r.id,date:r.date,description:"Lent to " + r.borrowerName,type:"Receivable",category:"Receivables",person:r.person,amount:r.amount,cutoffId:r.cutoffId}));
+  const repaymentTx: Transaction[] = (state.receivablePayments || []).map(p => ({id:"tx-"+p.id,date:p.date,description:"Repayment from " + (state.receivables?.find(r=>r.id===p.receivableId)?.borrowerName || "Borrower"),type:"Receivable Repayment",category:"Receivables",person:p.person,amount:p.amount,cutoffId:p.cutoffId}));
+  return [...incomeTx, ...expenseTx, ...debtTx, ...savingsTx, ...salarySavingsTx, ...allocationTx, ...transferTx, ...lendingTx, ...repaymentTx].sort((a, b) => b.date.localeCompare(a.date));
 };
 
 export const amountIsValid = (value: number) => Number.isFinite(value) && value > 0 && Math.round(value * 100) === value * 100;
+
+export const receivableBalance = (state: BudgetState, id: string) =>
+  (Math.round((state.receivables?.find(r => r.id === id)?.amount || 0) * 100) - (state.receivablePayments || []).filter(p => p.receivableId === id).reduce((n,p) => n + Math.round(p.amount * 100), 0)) / 100;
+
+export const isLendingExpense = (category: string) => /^lends?\s+money\s+to\b/i.test(category.trim());
+
+export const migrateLendingExpenses = (state: BudgetState): BudgetState => {
+  const receivables = [...(state.receivables || [])];
+  const expenses = state.expenses.filter(expense => {
+    if (!isLendingExpense(expense.category)) return true;
+    if (!receivables.some(r => r.legacyExpenseId === expense.id || r.id === "receivable-" + expense.id)) {
+      receivables.push({id:"receivable-"+expense.id,legacyExpenseId:expense.id,borrowerName:expense.payeeName?.trim() || expense.name.trim() || "Unknown borrower",amount:expense.amount,person:expense.paidBy,paymentMethod:expense.paymentMethod,date:expense.date,cutoffId:expense.cutoffId,notes:expense.notes});
+    }
+    return false;
+  });
+  return {...state,expenses,receivables,receivablePayments:state.receivablePayments || []};
+};
+
+const validReceivableAmount = (amount: number) => Number.isFinite(amount) && amount > 0 && Math.abs(amount * 100 - Math.round(amount * 100)) < 0.000001;
+const validReceivableDate = (date: string) => /^\d{4}-\d{2}-\d{2}$/.test(date) && Number.isFinite(Date.parse(date)) && new Date(date).toISOString().slice(0,10) === date;
+
+export const receivableError = (state: BudgetState, record: Omit<import("@/src/types/budget").Receivable,"id">): string => {
+  if (!record.borrowerName.trim()) return "Enter the borrower's name.";
+  if (!validReceivableAmount(record.amount)) return "Enter a positive amount with up to two decimal places.";
+  if (!validReceivableDate(record.date) || (record.dueDate !== undefined && !validReceivableDate(record.dueDate))) return "Choose a valid date.";
+  if (record.goalId) {
+    const goal = state.savingsGoals.find(g => g.id === record.goalId);
+    if (!goal) return "Choose an existing savings account.";
+    if (Math.round(record.amount * 100) > Math.round(goal.currentSavings * 100)) return "The savings account has insufficient funds.";
+  } else {
+    if (!["Ruru","Joselle"].includes(record.person) || !getWalletMethods(state).includes(record.paymentMethod)) return "Choose a wallet and its owner.";
+    if (Math.round(record.amount * 100) > Math.round(walletBalance(state,record.person as "Ruru" | "Joselle",record.paymentMethod) * 100)) return "The wallet has insufficient funds.";
+  }
+  return "";
+};
+
+export const applyReceivable = (state: BudgetState, record: import("@/src/types/budget").Receivable): BudgetState => {
+  if ((state.receivables || []).some(r => r.id === record.id) || receivableError(state,record)) return state;
+  const goal = state.savingsGoals.find(g => g.id === record.goalId);
+  return {...state,receivables:[{...record,borrowerName:record.borrowerName.trim(),goalName:goal?.name},...(state.receivables || [])],savingsGoals:state.savingsGoals.map(g => g.id === record.goalId ? {...g,currentSavings:Math.round((g.currentSavings-record.amount)*100)/100} : g)};
+};
+
+export const receivablePaymentError = (state: BudgetState, payment: Omit<import("@/src/types/budget").ReceivablePayment,"id">): string => {
+  if (!state.receivables?.some(r => r.id === payment.receivableId)) return "Choose a borrower.";
+  if (!validReceivableAmount(payment.amount)) return "Enter a positive amount with up to two decimal places.";
+  if (Math.round(payment.amount * 100) > Math.round(receivableBalance(state,payment.receivableId) * 100)) return "Payment cannot exceed the outstanding balance.";
+  if (!validReceivableDate(payment.date)) return "Choose a valid payment date.";
+  if (!["Ruru","Joselle"].includes(payment.person) || !getWalletMethods(state).includes(payment.paymentMethod)) return "Choose a receiving wallet and its owner.";
+  return "";
+};
+
+export const applyReceivablePayment = (state: BudgetState, payment: import("@/src/types/budget").ReceivablePayment): BudgetState => {
+  if ((state.receivablePayments || []).some(p => p.id === payment.id) || receivablePaymentError(state,payment)) return state;
+  return {...state,receivablePayments:[payment,...(state.receivablePayments || [])]};
+};
 
 export const upcomingBills = (bills: Bill[], today: string) => {
   const todayDate = toDate(today);
@@ -298,7 +355,7 @@ export const calculateMonthlySummary = (state: BudgetState, monthPrefix: string)
   };
 };
 
-export const normalizeImportedState = (state: BudgetState): BudgetState => ({
+export const normalizeImportedState = (state: BudgetState): BudgetState => migrateLendingExpenses({
   ...state,
   activeCutoffId: state.activeCutoffId || state.cutoffs[0]?.id || "",
   profile: { ...state.profile, currency: "PHP", theme: "light" },
@@ -330,7 +387,9 @@ export const walletBalance = (state: BudgetState, person: "Ruru" | "Joselle", me
   const savings = state.savingsTransactions.filter(t => !t.recordOnly && t.person === person && t.paymentMethod === method).reduce((n, t) => n + (t.type === "Withdrawal" ? 1 : -1) * Math.round(t.amount * 100), 0);
   const debtPaid = (state.debtPayments || []).filter(payment => payment.person === person && payment.paymentMethod === method).reduce((sum, payment) => sum + Math.round(payment.amount * 100), 0);
   const transfers = (state.fundTransfers || []).filter(transfer => transfer.person === person).reduce((total, transfer) => total + (!transfer.toGoalId && transfer.toMethod === method ? Math.round(transfer.amount * 100) : 0) - (!transfer.fromGoalId && transfer.fromMethod === method ? Math.round(transfer.amount * 100) : 0), 0);
-  return (incoming - outgoing + savings - debtPaid + transfers - Math.round(walletSalaryAllocations(state, person, method) * 100)) / 100;
+  const lent = (state.receivables || []).filter(r => !r.goalId && r.person === person && r.paymentMethod === method).reduce((n,r) => n + Math.round(r.amount * 100), 0);
+  const repaid = (state.receivablePayments || []).filter(r => r.person === person && r.paymentMethod === method).reduce((n,r) => n + Math.round(r.amount * 100), 0);
+  return (incoming - outgoing + savings - debtPaid + transfers - lent + repaid - Math.round(walletSalaryAllocations(state, person, method) * 100)) / 100;
 };
 
 export const availableSavings = (state: BudgetState, goalId?: string) => goalId
@@ -382,6 +441,8 @@ export const allWalletMethods = (state: BudgetState) => normalizeWalletMethods([
   ...getWalletMethods(state),
   ...state.incomes.map(item => item.paymentMethod || ""),
   ...state.expenses.map(item => item.paymentMethod || ""),
+  ...(state.receivables || []).filter(item => !item.goalId).map(item => item.paymentMethod || ""),
+  ...(state.receivablePayments || []).map(item => item.paymentMethod || ""),
   ...state.savingsTransactions.map(item => item.paymentMethod || ""),
   ...(state.debtPayments || []).map(item => item.paymentMethod || ""),
   ...(state.fundTransfers || []).flatMap(item => [item.fromMethod, item.toMethod])

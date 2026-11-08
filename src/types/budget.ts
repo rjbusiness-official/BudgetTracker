@@ -238,6 +238,8 @@ export interface RecurringTransaction {
 }
 
 export type TransactionType =
+  | "Receivable"
+  | "Receivable Repayment"
   | "Fund Transfer"
   | "Salary Allocation"
   | "Income"
@@ -297,6 +299,8 @@ export interface FundTransfer {
 }
 
 export interface BudgetState {
+  receivables?: Receivable[];
+  receivablePayments?: ReceivablePayment[];
   walletMethods?: string[];
   fundTransfers?: FundTransfer[];
   expenseTypes?: string[];
@@ -323,4 +327,29 @@ export interface BudgetState {
   vacationPlans: VacationPlan[];
   familyShares: FamilyShare[];
   recurringTransactions: RecurringTransaction[];
+}
+
+export interface Receivable {
+  id: string;
+  borrowerName: string;
+  amount: number;
+  dueDate?: string;
+  person: Expense["paidBy"];
+  paymentMethod: PaymentMethod;
+  goalId?: string;
+  goalName?: string;
+  date: string;
+  cutoffId: string;
+  notes?: string;
+  legacyExpenseId?: string;
+}
+
+export interface ReceivablePayment {
+  id: string;
+  receivableId: string;
+  amount: number;
+  person: "Ruru" | "Joselle";
+  paymentMethod: PaymentMethod;
+  date: string;
+  cutoffId: string;
 }
