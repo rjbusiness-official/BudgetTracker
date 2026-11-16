@@ -4,7 +4,7 @@ import type { FormEvent } from "react";
 import { HashRouter, Navigate, NavLink, Route, Routes, useLocation } from "react-router-dom";
 import { ArrowLeft, ArrowDown, ArrowUp, ArrowRightLeft, CalendarDays, CheckCircle, CreditCard, Heart, Landmark, LayoutDashboard, Settings, ChevronRight, LogOut, Pencil, PhilippinePeso, PiggyBank, Receipt, ShoppingCart, Target, Trash2, TrendingDown, TrendingUp, Wallet } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
-import { Bar, BarChart, CartesianGrid, Cell, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import DashboardCharts from "./DashboardCharts";
 import ReceivablesPage, { ReceivablesSummary } from "./Receivables";
 import { TodayExpenses, MoneyInWorkflow } from "./MoneyWorkflow";
 import { SavingsPage, SavingsSettings } from "./Savings";
@@ -20,7 +20,6 @@ import { monthlyBillCategories } from "@/src/utils/monthlyBills";
 import { getWalletMethods, allWalletMethods, salaryAllocationSummary, walletBalance, actualSpend, buildTransactions, debtProgress, formatCurrency, formatShortDate, getActiveCutoff, savingsProgress, totalIncome, totalSavings } from "@/src/utils/finance";
 import { Button, EmptyState, Field, Modal, MoneyDisplay, PageHeader, Panel, ProgressBar, StatusBadge, SummaryCard, cn, inputClass } from "@/src/components/ui";
 
-const chartColors = ["#249fff", "#c28afb", "#80e9f4", "#819fff", "#e3dcf6", "#acf5af", "#1e1e29"];
 
 function getString(form: FormData, key: string) {
   return String(form.get(key) || "").trim();
@@ -191,7 +190,7 @@ function DashboardPage() {
       <SummaryCard label="Available Balance" value={formatCurrency(balance)} helper="After allocations, expenses, debt payments, and savings" icon={Wallet} />
       <SummaryCard label="Savings" value={formatCurrency(totalSavings(state))} icon={PiggyBank} tone="accent" />
     </div>
-    <div className="grid gap-4 md:grid-cols-2"><ChartPanel title="Income and expenses by month"><ResponsiveContainer width="100%" height={260}><BarChart data={Array.from(new Set([...state.incomes.map(i=>i.date.slice(0,7)),...state.expenses.map(e=>e.date.slice(0,7))])).sort().slice(-6).map(month=>({month,income:sum(state.incomes.filter(i=>i.date.startsWith(month)).map(i=>i.amount)),expenses:sum(state.expenses.filter(e=>e.date.startsWith(month)).map(e=>e.amount))}))}><CartesianGrid strokeDasharray="4 6" vertical={false} stroke="#e8e8f0"/><XAxis dataKey="month" axisLine={false} tickLine={false}/><YAxis axisLine={false} tickLine={false} width={55}/><Tooltip formatter={v=>formatCurrency(Number(v))}/><Bar dataKey="income" name="Income" fill="#249fff" radius={[10,10,10,10]}/><Bar dataKey="expenses" name="Expenses" fill="#c28afb" radius={[10,10,10,10]}/></BarChart></ResponsiveContainer></ChartPanel><ChartPanel title="Spending by expense type"><ResponsiveContainer width="100%" height={260}><PieChart><Pie data={Array.from(new Set(state.expenses.map(e=>e.category))).map(name=>({name,value:sum(state.expenses.filter(e=>e.category===name).map(e=>e.amount))}))} dataKey="value" nameKey="name" innerRadius={45} outerRadius={85} label={({ name }) => name}>{Array.from(new Set(state.expenses.map(e=>e.category))).map((name,i)=><Cell key={name} fill={chartColors[i%chartColors.length]}/>)}</Pie><Tooltip formatter={v=>formatCurrency(Number(v))}/></PieChart></ResponsiveContainer>{!state.expenses.length&&<p className="text-sm text-slate-500">Record expenses to see the breakdown.</p>}</ChartPanel></div>
+    <DashboardCharts state={state} />
     <Panel>
       <h2 className="text-lg font-semibold">Salary allocations</h2>
       <p className="mt-1 text-sm text-slate-500">Allocations are automatically deducted from the available balance when you save your salary.</p>
@@ -303,10 +302,6 @@ function WishlistForm({ initial, onDone }: { initial?: WishlistItem | null; onDo
   const data = useActiveFinance();
   const submit = (event: FormEvent<HTMLFormElement>) => { event.preventDefault(); const form = new FormData(event.currentTarget); const payload = { name: getString(form, "name"), estimatedCost: getNumber(form, "estimatedCost"), priority: getString(form, "priority") as WishlistItem["priority"], targetPurchaseDate: getString(form, "targetPurchaseDate"), amountSaved: getNumber(form, "amountSaved"), plannedContributionPerCutoff: getNumber(form, "plannedContributionPerCutoff"), status: getString(form, "status") as WishlistItem["status"], actualCost: getNumber(form, "actualCost") || undefined, notes: getString(form, "notes") }; data.actions.upsertWishlistItem(initial ? { ...payload, id: initial.id } : payload); event.currentTarget.reset(); onDone(); };
   return <form className="grid gap-3 md:grid-cols-4" onSubmit={submit}><Field label="Item Name"><input className={inputClass} name="name" required defaultValue={initial?.name || ""} /></Field><Field label="Estimated Cost"><input className={inputClass} name="estimatedCost" type="number" min="0.01" step="0.01" required defaultValue={initial?.estimatedCost || ""} /></Field><Field label="Priority"><select className={inputClass} name="priority" defaultValue={initial?.priority || "Medium"}><option>High</option><option>Medium</option><option>Low</option></select></Field><Field label="Target Date"><input className={inputClass} name="targetPurchaseDate" type="date" required defaultValue={initial?.targetPurchaseDate || data.cutoff.payday} /></Field><Field label="Amount Saved"><input className={inputClass} name="amountSaved" type="number" min="0" step="0.01" defaultValue={initial?.amountSaved || 0} /></Field><Field label="Contribution / Cutoff"><input className={inputClass} name="plannedContributionPerCutoff" type="number" min="0" step="0.01" defaultValue={initial?.plannedContributionPerCutoff || 0} /></Field><Field label="Status"><select className={inputClass} name="status" defaultValue={initial?.status || "Planning"}><option>Planning</option><option>Saving</option><option>Ready to Buy</option><option>Purchased</option><option>Cancelled</option></select></Field><Field label="Actual Cost"><input className={inputClass} name="actualCost" type="number" min="0" step="0.01" defaultValue={initial?.actualCost || ""} /></Field><Field label="Notes"><input className={inputClass} name="notes" defaultValue={initial?.notes || ""} /></Field><div className="flex flex-wrap items-end gap-2 md:col-span-3"><Button type="submit" className="w-fit shrink-0"><CheckCircle size={17} /> {initial ? "Save Item" : "Add Item"}</Button>{initial ? <Button variant="secondary" onClick={onDone}>Cancel</Button> : null}</div></form>;
-}
-
-function ChartPanel({ title, children }: { title: string; children: React.ReactNode }) {
-  return <Panel><h2 className="text-lg font-semibold">{title}</h2><div className="mt-4">{children}</div></Panel>;
 }
 
 function TransactionHistoryPage() {
