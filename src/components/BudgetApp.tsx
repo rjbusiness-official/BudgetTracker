@@ -91,7 +91,7 @@ function AppShell() {
   const showBack = location.pathname !== "/";
   return (
     <div
-      className="min-h-screen bg-[#b9b0cc] p-3 text-[#1e1e29] md:p-6 lg:p-9"
+      className="min-h-screen bg-[#b9b0cc] p-3 text-[#1e1e29] md:p-6 lg:h-dvh lg:min-h-0 lg:overflow-hidden lg:p-9"
       onWheelCapture={(event) => {
         // Release number inputs before the browser can step their value on scroll.
         if (event.target instanceof HTMLInputElement && event.target.type === "number") {
@@ -99,8 +99,8 @@ function AppShell() {
         }
       }}
     >
-      <div className="mx-auto grid min-h-[calc(100vh-48px)] w-full max-w-[1600px] gap-5 rounded-[36px] bg-[#f0f0f2] p-2 lg:grid-cols-[235px_minmax(0,1fr)] lg:p-3">
-        <aside className="flex flex-col rounded-[28px] bg-white p-4 lg:sticky lg:top-9 lg:h-[calc(100vh-96px)]">
+      <div className="mx-auto grid min-h-[calc(100vh-48px)] w-full max-w-[1600px] gap-5 rounded-[36px] bg-[#f0f0f2] p-2 lg:h-full lg:min-h-0 lg:grid-cols-[235px_minmax(0,1fr)] lg:grid-rows-[minmax(0,1fr)] lg:overflow-hidden lg:p-3">
+        <aside className="flex flex-col rounded-[28px] bg-white p-4 lg:min-h-0 lg:overflow-y-auto">
           <NavLink to="/" className="flex items-center gap-2 px-1 py-5">
             <span className="relative flex h-10 w-10 items-center justify-center rounded-full bg-[#c28afb] text-white"><Wallet size={23}/><span className="absolute -bottom-1 -left-1 h-3 w-3 rounded-full bg-[#80e9f4] ring-2 ring-white"/></span>
             <span className="text-lg font-bold tracking-tight text-[#191923]">Budget Tracker</span>
@@ -110,12 +110,12 @@ function AppShell() {
           </nav>
           <div className="mt-auto hidden pt-10 lg:block"><div className="rounded-[24px] bg-[#e3dcf6] p-5"><span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-white/70 text-[#7956b5]"><Heart size={22}/></span><h2 className="mt-4 text-lg font-semibold">Building a future.</h2><p className="mt-2 text-sm leading-6 text-[#5d5573]">Budgeting isn’t about limiting yourself — it’s about making the things that excite you possible.</p><NavLink to="/income" className="mt-5 inline-flex items-center gap-2 text-sm font-semibold">plan your salary <ChevronRight size={16}/></NavLink></div></div>
         </aside>
-        <div className="min-w-0 px-1 py-1 lg:px-0">
-          <header className="lg:sticky lg:top-0 lg:z-30 mb-5 flex flex-wrap items-center justify-between gap-3 rounded-[26px] bg-white px-5 py-4 shadow-[0_8px_30px_rgba(30,30,40,0.04)]">
+        <div className="min-w-0 px-1 py-1 lg:flex lg:min-h-0 lg:flex-col lg:overflow-hidden lg:px-0">
+          <header className="mb-5 flex shrink-0 flex-wrap items-center justify-between gap-3 rounded-[26px] bg-white px-5 py-4 shadow-[0_8px_30px_rgba(30,30,40,0.04)]">
             <div className="flex items-center gap-3">{showBack ? <BackToChoices /> : <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[#f1f1f3]"><CalendarDays size={20}/></span>}<p className="text-sm text-[#696979]">{new Intl.DateTimeFormat("en-PH",{weekday:"short",month:"short",day:"numeric",year:"numeric",timeZone:"Asia/Manila"}).format(new Date())}</p></div>
             <div className="flex items-center gap-3"><span className="hidden text-sm font-medium sm:block">{data.state.profile.husbandName} & {data.state.profile.wifeName}</span><span className="flex h-10 w-10 items-center justify-center rounded-full bg-[#e3dcf6] text-sm font-semibold" aria-hidden="true">{data.state.profile.husbandName.slice(0,1)}{data.state.profile.wifeName.slice(0,1)}</span><Button variant="ghost" confirm="Sign out of your budget tracker?" onClick={signOut}><LogOut size={17} /> Sign out</Button></div>
           </header>
-          <main className="min-w-0 pb-3">
+          <main className="min-w-0 pb-3 lg:min-h-0 lg:flex-1 lg:overflow-y-auto lg:overscroll-contain lg:px-1" tabIndex={0}>
           <Routes>
             <Route path="/" element={<Navigate to="/dashboard" replace />} />
             <Route path="/dashboard" element={<DashboardPage />} />
