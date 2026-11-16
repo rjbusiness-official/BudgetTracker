@@ -203,7 +203,6 @@ function DashboardPage() {
     <DashboardCharts state={state} />
     <Panel>
       <h2 className="text-lg font-semibold">Salary allocations</h2>
-      <p className="mt-1 text-sm text-slate-500">Allocations are automatically deducted from the available balance when you save your salary.</p>
       <div className="mt-4 grid gap-4">{state.incomes.filter(income => income.type === "Salary" || income.source === "Salary").slice().sort((a,b) => b.date.localeCompare(a.date)).map(income => {
         const summary = salaryAllocationSummary(state, income.id);
         const allocations = state.salaryAllocations.filter(item => item.incomeId === income.id);

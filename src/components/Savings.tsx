@@ -129,7 +129,6 @@ export function SavingsPage() {
       {owner==="Combined" && <Field label="Contributed by"><select className={inputClass} value={contributor} onChange={event=>setContributor(event.target.value as "Ruru"|"Joselle")}><option>Ruru</option><option>Joselle</option></select></Field>}
       {goal && <div className="rounded-2xl bg-[#e7f5ff] p-4 text-sm"><p>Saved at <strong>{goal.paymentMethod}</strong> · Savings balance <strong>{formatCurrency(goal.currentSavings)}</strong></p></div>}
       <div className="grid gap-4 sm:grid-cols-2"><Field label="Amount"><AmountInput className={inputClass} required type="number" min="0.01" step="0.01" placeholder="0.00" value={amount} onChange={event=>setAmount(event.target.value)} /></Field><Field label="Date"><input className={inputClass} required type="date" value={date} onChange={event=>setDate(event.target.value)}/></Field></div>
-      <p className="text-sm text-slate-500">This records money already in savings. Your wallet balance stays unchanged. Use Transfer Funds to move money from a wallet.</p>
       {error && <p role="alert" className="text-sm text-rose-700">{error}</p>}{notice && <p role="status" className="text-sm text-emerald-700">{notice}</p>}
       <Button confirm={"Record " + formatCurrency(Number(amount)) + " in " + goal?.name + "? Your wallet balance will stay unchanged."} type="submit" className="w-fit" disabled={sync.isLoading || !goal}>Record savings</Button>
     </form></Panel>
