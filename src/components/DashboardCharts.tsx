@@ -2,7 +2,7 @@
 import { useAmountPrivacy } from "@/src/context/AmountPrivacyContext";
 
 import { useState } from "react";
-import { Bar, BarChart, CartesianGrid, Cell, Label, LabelList, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { Bar, BarChart, CartesianGrid, Cell, Label, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import type { BudgetState } from "@/src/types/budget";
 
 import { expenseBreakdown } from "@/src/utils/expenseBreakdown";
@@ -14,7 +14,7 @@ const incomeColors = ["#249fff", "#c28afb", "#43b99b"];
 const monthLabel = (month: string) => new Date(Number(month.slice(0, 4)), Number(month.slice(5, 7)) - 1, 1).toLocaleDateString("en-PH", { month: "long", year: "numeric" });
 
 export default function DashboardCharts({ state }: { state: BudgetState }) {
-  const { formatCurrency } = useAmountPrivacy();
+  const { formatCurrency, hidden } = useAmountPrivacy();
   const months = Array.from(new Set([...state.incomes.map(item => item.date.slice(0, 7)), ...state.expenses.map(item => item.date.slice(0, 7)), ...(state.receivablePayments || []).map(item => item.date.slice(0, 7))])).sort().reverse();
   const [selectedMonth, setSelectedMonth] = useState("");
   const month = months.includes(selectedMonth) ? selectedMonth : months[0] || "";
@@ -23,7 +23,7 @@ export default function DashboardCharts({ state }: { state: BudgetState }) {
   const total = income + expenses;
   const shares = [{ name: "Income", value: income }, { name: "Expenses", value: expenses }].map(item => ({ ...item, percentage: total > 0 ? item.value / total * 100 : 0 }));
   const sources = incomeBreakdown(state, month);
-  const categories = expenseBreakdown(state.expenses).map(item => ({ ...item, ruruShare: item.ruru / item.value, joselleShare: item.joselle / item.value, sharedShare: item.shared / item.value }));
+  const categories = expenseBreakdown(state.expenses);
   const hasShared = categories.some(item => item.shared > 0);
   const spending = categories.reduce((sum, item) => sum + item.value, 0);
   return <div className="grid min-w-0 gap-4 md:grid-cols-2">
@@ -49,10 +49,10 @@ export default function DashboardCharts({ state }: { state: BudgetState }) {
     </Panel>
     <Panel>
       <h2 className="text-lg font-semibold">Spending by expense type</h2>
-      <p className="mt-2 text-xs text-slate-500">Each bar is 100% of that expense type, split by who paid.</p>
+      <p className="mt-2 text-xs text-slate-500">Total spending per expense type, split by who paid.</p>
       <ul className="mt-3 flex flex-wrap gap-4 text-sm"><li className="flex items-center gap-2"><span className="h-3 w-3 rounded-full bg-[#249fff]" />Ruru</li><li className="flex items-center gap-2"><span className="h-3 w-3 rounded-full bg-[#c28afb]" />Joselle</li>{hasShared && <li className="flex items-center gap-2"><span className="h-3 w-3 rounded-full bg-[#94a3b8]" />Shared Money</li>}</ul>
       {categories.length ? <>
-        <div className="mt-4 max-h-[420px] overflow-y-auto"><ResponsiveContainer width="100%" height={Math.max(240, categories.length * 48 + 35)}><BarChart accessibilityLayer layout="vertical" stackOffset="expand" data={categories} margin={{ top: 5, right: 18, bottom: 5, left: 0 }}><CartesianGrid strokeDasharray="4 6" horizontal={false} stroke="#e8e8f0" /><XAxis type="number" axisLine={false} tickLine={false} tick={{ fontSize: 11 }} domain={[0, 1]} ticks={[0, 0.25, 0.5, 0.75, 1]} tickFormatter={value => Math.round(Number(value) * 100) + "%"} /><YAxis type="category" dataKey="name" axisLine={false} tickLine={false} width={110} tick={{ fontSize: 11 }} interval={0} /><Tooltip cursor={{ fill: "#f2f0fa" }} formatter={(value, name, item) => { const categoryTotal = Number(item.payload?.value) || 0; return [formatCurrency(Number(value)) + " · " + (categoryTotal > 0 ? Number(value) / categoryTotal * 100 : 0).toFixed(1) + "%", name]; }} labelFormatter={(label, payload) => String(label) + " · Total " + formatCurrency(Number(payload[0]?.payload?.value) || 0)} /><Bar dataKey="ruru" name="Ruru" stackId="spending" fill="#249fff" maxBarSize={26}><LabelList dataKey="ruruShare" position="center" fill="#172033" fontSize={11} formatter={value => Number(value) >= 0.08 ? Math.round(Number(value) * 100) + "%" : ""} /></Bar><Bar dataKey="joselle" name="Joselle" stackId="spending" fill="#c28afb" maxBarSize={26}><LabelList dataKey="joselleShare" position="center" fill="#172033" fontSize={11} formatter={value => Number(value) >= 0.08 ? Math.round(Number(value) * 100) + "%" : ""} /></Bar>{hasShared && <Bar dataKey="shared" name="Shared Money" stackId="spending" fill="#94a3b8" maxBarSize={26}><LabelList dataKey="sharedShare" position="center" fill="#172033" fontSize={11} formatter={value => Number(value) >= 0.08 ? Math.round(Number(value) * 100) + "%" : ""} /></Bar>}</BarChart></ResponsiveContainer></div>
+        <div className="mt-4 max-h-[420px] overflow-y-auto"><ResponsiveContainer width="100%" height={Math.max(240, categories.length * 48 + 35)}><BarChart accessibilityLayer layout="vertical" data={categories} margin={{ top: 5, right: 18, bottom: 5, left: 0 }}><CartesianGrid strokeDasharray="4 6" horizontal={false} stroke="#e8e8f0" /><XAxis type="number" axisLine={false} tickLine={false} tick={{ fontSize: 11 }} tickFormatter={value => hidden ? formatCurrency(Number(value)) : "₱" + new Intl.NumberFormat("en-PH", { notation: "compact", maximumFractionDigits: 1 }).format(Number(value))} /><YAxis type="category" dataKey="name" axisLine={false} tickLine={false} width={110} tick={{ fontSize: 11 }} interval={0} /><Tooltip cursor={{ fill: "#f2f0fa" }} formatter={(value, name) => [formatCurrency(Number(value)), name]} labelFormatter={(label, payload) => String(label) + " · Total " + formatCurrency(Number(payload[0]?.payload?.value) || 0)} /><Bar dataKey="ruru" name="Ruru" stackId="spending" fill="#249fff" maxBarSize={26}></Bar><Bar dataKey="joselle" name="Joselle" stackId="spending" fill="#c28afb" maxBarSize={26}></Bar>{hasShared && <Bar dataKey="shared" name="Shared Money" stackId="spending" fill="#94a3b8" maxBarSize={26}></Bar>}</BarChart></ResponsiveContainer></div>
         <p className="mt-3 text-sm text-slate-500">Total spending: <span className="font-semibold text-slate-900">{formatCurrency(spending)}</span></p>
       </> : <p className="py-12 text-center text-sm text-slate-500">Record expenses to see the breakdown.</p>}
     </Panel>
