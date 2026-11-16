@@ -12,3 +12,11 @@ export function expenseBreakdown(expenses: Expense[]) {
   }
   return Array.from(totals.values()).filter(item => item.value > 0).sort((a, b) => b.value - a.value);
 }
+
+export function orderedExpenseSegments(row: { ruru: number; joselle: number; shared: number }) {
+  return [
+    { owner: "Ruru", amount: row.ruru, color: "#249fff" },
+    { owner: "Joselle", amount: row.joselle, color: "#c28afb" },
+    { owner: "Shared Money", amount: row.shared, color: "#94a3b8" }
+  ].sort((a, b) => a.amount - b.amount);
+}
