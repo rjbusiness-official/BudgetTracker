@@ -1,14 +1,17 @@
 "use client";
+import AmountInput from "./AmountInput";
+import { useAmountPrivacy } from "@/src/context/AmountPrivacyContext";
 
 import { useState } from "react";
 import type { FormEvent } from "react";
 import { ArrowRightLeft } from "lucide-react";
 import { useBudget } from "@/src/context/BudgetContext";
 import type { FundTransfer, PaymentMethod } from "@/src/types/budget";
-import { formatCurrency, formatShortDate, getActiveCutoff, getWalletMethods, walletBalance } from "@/src/utils/finance";
+import { formatShortDate, getActiveCutoff, getWalletMethods, walletBalance } from "@/src/utils/finance";
 import { Button, EmptyState, Field, PageHeader, Panel, inputClass } from "./ui";
 
 export default function TransferFunds() {
+  const { formatCurrency } = useAmountPrivacy();
   const { state, actions, sync } = useBudget();
   const transferMethods = getWalletMethods(state);
   const [person, setPerson] = useState<FundTransfer["person"]>("Ruru");
@@ -42,7 +45,7 @@ export default function TransferFunds() {
         <Field label="To wallet or savings"><select className={inputClass} required value={to} onChange={event=>{setTo(event.target.value as PaymentMethod);setError("");setNotice("");}}><option value="" disabled>Select account</option>{transferMethods.map(method=><option key={method} disabled={!sourceGoal && method===from}>{method}</option>)}{savings.map(item=><option disabled={from.startsWith("savings:")} key={item.id} value={"savings:"+item.id}>{item.owner} · {item.name} (Savings · {item.paymentMethod})</option>)}</select></Field>
       </div>
       <div className="rounded-2xl bg-[#e7f5ff] p-4 text-sm"><p>Available in {source}: <strong>{formatCurrency(available)}</strong></p><p className="mt-1 text-slate-600">Current {destination} balance: {formatCurrency(goal ? goal.currentSavings : walletBalance(state,person,to))}</p></div>
-      <div className="grid gap-4 sm:grid-cols-2"><Field label="Amount"><input className={inputClass} required type="number" min="0.01" step="0.01" value={amount} onChange={event=>setAmount(event.target.value)} placeholder="0.00" /></Field><Field label="Date"><input className={inputClass} required type="date" value={date} onChange={event=>setDate(event.target.value)} /></Field></div>
+      <div className="grid gap-4 sm:grid-cols-2"><Field label="Amount"><AmountInput className={inputClass} required type="number" min="0.01" step="0.01" value={amount} onChange={event=>setAmount(event.target.value)} placeholder="0.00" /></Field><Field label="Date"><input className={inputClass} required type="date" value={date} onChange={event=>setDate(event.target.value)} /></Field></div>
       <Field label="Comment (optional)"><input className={inputClass} value={notes} onChange={event=>setNotes(event.target.value)} /></Field>
       <p className="text-sm text-slate-500">Wallet transfers move money between wallets. Transfers to savings deduct the source wallet and increase the selected savings balance. Transfers from savings reduce savings and credit the destination wallet without counting as income or spending.</p>
       {error && <p role="alert" className="text-sm text-rose-700">{error}</p>}

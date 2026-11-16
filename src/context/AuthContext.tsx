@@ -5,6 +5,7 @@ import type { FormEvent, ReactNode } from "react";
 import { createClient } from "@supabase/supabase-js";
 import { verifyResetPassword } from "@/src/utils/verifyResetPassword";
 import type { User as SupabaseUser } from "@supabase/supabase-js";
+import { AmountPrivacyProvider } from "./AmountPrivacyContext";
 import { Heart, PhilippinePeso } from "lucide-react";
 import { Button, Field, cn, inputClass } from "@/src/components/ui";
 import { isSupabaseConfigured, supabase, supabaseLoginEmail, supabaseLoginUsername, supabaseUrl, supabasePublishableKey } from "@/src/lib/supabase";
@@ -124,7 +125,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     );
   }
 
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+  return <AuthContext.Provider value={value}><AmountPrivacyProvider key={user.id} userId={user.id} verifyPassword={verifyPassword}>{children}</AmountPrivacyProvider></AuthContext.Provider>;
 }
 
 function AuthShell({ title, message }: { title: string; message: string }) {

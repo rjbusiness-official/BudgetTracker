@@ -1,12 +1,14 @@
 "use client";
+import { useAmountPrivacy } from "@/src/context/AmountPrivacyContext";
 
 import { useEffect, useRef } from "react";
 import { X } from "lucide-react";
 import type { BudgetState, Transaction } from "@/src/types/budget";
-import { formatCurrency, formatShortDate } from "@/src/utils/finance";
+import { formatShortDate } from "@/src/utils/finance";
 import { transactionDetails } from "@/src/utils/transactionDetails";
 
 export default function TransactionDetails({ state, transaction, onClose }: { state: BudgetState; transaction: Transaction; onClose: () => void }) {
+  const { formatCurrency } = useAmountPrivacy();
   const dialog = useRef<HTMLDialogElement>(null);
   const details = transactionDetails(state, transaction);
   useEffect(() => {

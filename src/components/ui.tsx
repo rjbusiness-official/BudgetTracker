@@ -1,11 +1,12 @@
 ﻿"use client";
+import { useAmountPrivacy } from "@/src/context/AmountPrivacyContext";
 
 import { useEffect, useRef, useState } from "react";
 import type { ReactNode, MouseEvent } from "react";
 import { useBudgetSync } from "@/src/context/BudgetContext";
 import type { LucideIcon } from "lucide-react";
 import { LoaderCircle, X } from "lucide-react";
-import { formatCurrency } from "@/src/utils/finance";
+
 
 export const cn = (...classes: Array<string | false | null | undefined>) => classes.filter(Boolean).join(" ");
 
@@ -66,6 +67,7 @@ export function SummaryCard({
 }
 
 export function MoneyDisplay({ value, className }: { value: number; className?: string }) {
+  const { formatCurrency } = useAmountPrivacy();
   return <span className={cn("tabular-nums", className)}>{formatCurrency(value)}</span>;
 }
 

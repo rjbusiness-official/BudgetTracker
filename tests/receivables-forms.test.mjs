@@ -13,6 +13,7 @@ function harness() {
  vm.runInNewContext(compiled,{exports,require(name){
   if(name==="react")return {useState(initial){const index=cursor++;if(!(index in values))values[index]=typeof initial==="function"?initial():initial;return [values[index],value=>{values[index]=value;}];}};
   if(name==="react/jsx-runtime")return {jsx:(type,props)=>({type,props}),jsxs:(type,props)=>({type,props})};
+  if(name.includes("AmountPrivacyContext"))return {useAmountPrivacy:()=>({hidden:false,formatCurrency:String})};
   if(name.includes("BudgetContext"))return {useBudget:()=>({state,sync:{isLoading:false},actions:{lendMoney:r=>{calls.push(r);return "";},receiveReceivable:r=>{calls.push(r);return "";}}})};
   if(name.includes("finance"))return {getWalletMethods:()=>["Cash"],walletBalance:()=>1000,formatCurrency:String,formatShortDate:v=>v,getActiveCutoff:()=>({id:"current"}),receivableBalance:()=>200};
   return {};

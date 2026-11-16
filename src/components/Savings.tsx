@@ -1,17 +1,20 @@
 "use client";
+import AmountInput from "./AmountInput";
+import { useAmountPrivacy } from "@/src/context/AmountPrivacyContext";
 
 import { useState } from "react";
 import type { FormEvent } from "react";
 import { NavLink } from "react-router-dom";
 import { useBudget } from "@/src/context/BudgetContext";
 import type { SavingsGoal, SavingsDestination, SavingsOwner } from "@/src/types/budget";
-import { formatCurrency, formatShortDate, getActiveCutoff, getWalletMethods, savingsForOwner } from "@/src/utils/finance";
+import { formatShortDate, getActiveCutoff, getWalletMethods, savingsForOwner } from "@/src/utils/finance";
 import { Button, Field, Modal, PageHeader, Panel, inputClass } from "./ui";
 
 const owners: SavingsOwner[] = ["Ruru", "Joselle", "Combined"];
 const today = () => new Intl.DateTimeFormat("en-CA", {timeZone:"Asia/Manila",year:"numeric",month:"2-digit",day:"2-digit"}).format(new Date());
 
 function DeleteSavings({ goal }: { goal: SavingsGoal }) {
+  const { formatCurrency } = useAmountPrivacy();
   const { state, actions, sync } = useBudget();
   const [open, setOpen] = useState(false);
   const [destination, setDestination] = useState("");
@@ -64,6 +67,7 @@ function DeleteSavings({ goal }: { goal: SavingsGoal }) {
 }
 
 export function SavingsSettings() {
+  const { formatCurrency } = useAmountPrivacy();
   const { state, actions, sync } = useBudget();
   const banks = getWalletMethods(state);
   const [name, setName] = useState("");
@@ -95,6 +99,7 @@ export function SavingsSettings() {
 }
 
 export function SavingsPage() {
+  const { formatCurrency } = useAmountPrivacy();
   const {state,actions,sync} = useBudget();
   const [owner,setOwner] = useState<SavingsOwner>("Ruru");
   const [goalId,setGoalId] = useState("");
@@ -123,7 +128,7 @@ export function SavingsPage() {
       {!goals.length && <p className="text-sm text-slate-500">No savings accounts for {owner}. Create one in Settings → Add new savings.</p>}
       {owner==="Combined" && <Field label="Contributed by"><select className={inputClass} value={contributor} onChange={event=>setContributor(event.target.value as "Ruru"|"Joselle")}><option>Ruru</option><option>Joselle</option></select></Field>}
       {goal && <div className="rounded-2xl bg-[#e7f5ff] p-4 text-sm"><p>Saved at <strong>{goal.paymentMethod}</strong> · Savings balance <strong>{formatCurrency(goal.currentSavings)}</strong></p></div>}
-      <div className="grid gap-4 sm:grid-cols-2"><Field label="Amount"><input className={inputClass} required type="number" min="0.01" step="0.01" placeholder="0.00" value={amount} onChange={event=>setAmount(event.target.value)} /></Field><Field label="Date"><input className={inputClass} required type="date" value={date} onChange={event=>setDate(event.target.value)}/></Field></div>
+      <div className="grid gap-4 sm:grid-cols-2"><Field label="Amount"><AmountInput className={inputClass} required type="number" min="0.01" step="0.01" placeholder="0.00" value={amount} onChange={event=>setAmount(event.target.value)} /></Field><Field label="Date"><input className={inputClass} required type="date" value={date} onChange={event=>setDate(event.target.value)}/></Field></div>
       <p className="text-sm text-slate-500">This records money already in savings. Your wallet balance stays unchanged. Use Transfer Funds to move money from a wallet.</p>
       {error && <p role="alert" className="text-sm text-rose-700">{error}</p>}{notice && <p role="status" className="text-sm text-emerald-700">{notice}</p>}
       <Button confirm={"Record " + formatCurrency(Number(amount)) + " in " + goal?.name + "? Your wallet balance will stay unchanged."} type="submit" className="w-fit" disabled={sync.isLoading || !goal}>Record savings</Button>

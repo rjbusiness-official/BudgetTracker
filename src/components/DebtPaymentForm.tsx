@@ -1,13 +1,16 @@
 "use client";
+import AmountInput from "./AmountInput";
+import { useAmountPrivacy } from "@/src/context/AmountPrivacyContext";
 
 import { useState } from "react";
 import type { FormEvent } from "react";
 import type { Debt } from "@/src/types/budget";
 import { useBudget } from "@/src/context/BudgetContext";
-import { formatCurrency, getActiveCutoff, getWalletMethods, walletBalance } from "@/src/utils/finance";
+import { getActiveCutoff, getWalletMethods, walletBalance } from "@/src/utils/finance";
 import { Button, Field, inputClass } from "./ui";
 
 export default function DebtPaymentForm({ debt }: { debt: Debt }) {
+  const { formatCurrency } = useAmountPrivacy();
   const { state, actions } = useBudget();
   const methods = getWalletMethods(state);
   const [open, setOpen] = useState(false);
@@ -37,7 +40,7 @@ export default function DebtPaymentForm({ debt }: { debt: Debt }) {
       <Field label="Paid by"><select className={inputClass} value={person} onChange={e => setPerson(e.target.value as "Ruru" | "Joselle")}><option>Ruru</option><option>Joselle</option></select></Field>
       <Field label="Pay from account"><select className={inputClass} required value={method} onChange={e => setMethod(e.target.value)}><option value="" disabled>Select account</option>{methods.map(item => <option key={item}>{item}</option>)}</select></Field>
       <p className="text-sm sm:col-span-2">Available balance: <strong>{formatCurrency(available)}</strong></p>
-      <Field label="Payment amount"><input className={inputClass} required type="number" min="0.01" max={debt.remainingBalance} step="0.01" value={amount} onChange={e => setAmount(e.target.value)} /></Field>
+      <Field label="Payment amount"><AmountInput className={inputClass} required type="number" min="0.01" max={debt.remainingBalance} step="0.01" value={amount} onChange={e => setAmount(e.target.value)} /></Field>
       <Field label="Payment date"><input className={inputClass} required type="date" value={date} onChange={e => setDate(e.target.value)} /></Field>
       <Field label="Notes (optional)"><input className={inputClass} value={notes} onChange={e => setNotes(e.target.value)} /></Field>
       <div className="flex flex-wrap items-end gap-2 sm:col-span-2"><Button type="submit" confirm={"Record a payment of " + formatCurrency(payment || 0) + " for " + debt.name + " from " + person + " · " + method + "?"}>Save Payment</Button><Button variant="secondary" onClick={() => { setOpen(false); setNotice(""); }}>Cancel</Button></div>

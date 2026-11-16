@@ -1,8 +1,9 @@
 "use client";
+import { useAmountPrivacy } from "@/src/context/AmountPrivacyContext";
 
 import type { Debt, DebtPayment } from "@/src/types/budget";
 import { buildDebtAmortization } from "@/src/utils/debtPlan";
-import { formatCurrency } from "@/src/utils/finance";
+
 import { StatusBadge } from "@/src/components/ui";
 
 function projectionStart(debt: Debt, payments: DebtPayment[]) {
@@ -16,6 +17,7 @@ function projectionStart(debt: Debt, payments: DebtPayment[]) {
 }
 
 export default function DebtAmortization({ debt, payments }: { debt: Debt; payments: DebtPayment[] }) {
+  const { formatCurrency } = useAmountPrivacy();
   const history = payments.filter(payment => payment.debtId === debt.id).slice().sort((a, b) => b.date.localeCompare(a.date));
   const schedule = buildDebtAmortization(debt, projectionStart(debt, history));
   const last = schedule.rows.at(-1);
