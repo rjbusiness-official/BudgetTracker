@@ -129,3 +129,15 @@ input[type="number"]::-webkit-outer-spin-button {
   -webkit-appearance: none;
   margin: 0;
 }
+
+/* Preserve touch scrolling while disabling pinch and double-tap page zoom. */
+html, body, dialog {
+  touch-action: pan-x pan-y;
+}
+
+/* Prevent mobile browsers from zooming when a form control receives focus. */
+@media (pointer: coarse) {
+  input, select, textarea {
+    font-size: max(16px, 1em);
+  }
+}

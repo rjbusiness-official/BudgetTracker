@@ -4,6 +4,7 @@ import type { FormEvent } from "react";
 import { HashRouter, Navigate, NavLink, Route, Routes, useLocation } from "react-router-dom";
 import { ArrowLeft, ArrowDown, ArrowUp, ArrowRightLeft, CalendarDays, CheckCircle, CreditCard, Heart, Landmark, LayoutDashboard, Settings, ChevronRight, LogOut, Pencil, PhilippinePeso, PiggyBank, Receipt, ShoppingCart, Target, Trash2, TrendingDown, TrendingUp, Wallet } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
+import { preventPageZoom } from "@/src/utils/zoom";
 import DashboardCharts from "./DashboardCharts";
 import ReceivablesPage, { ReceivablesSummary } from "./Receivables";
 import { TodayExpenses, MoneyInWorkflow } from "./MoneyWorkflow";
@@ -49,6 +50,8 @@ function useActiveFinance() {
 
 export default function BudgetApp() {
   const [mounted, setMounted] = useState(false);
+
+  useEffect(() => preventPageZoom(document), []);
 
   useEffect(() => {
     setMounted(true);
