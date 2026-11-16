@@ -34,7 +34,7 @@ function VisibilityPasswordDialog({ onClose }: { onClose: () => void }) {
   return <dialog ref={dialog} aria-labelledby="visibility-title" onCancel={event => { event.preventDefault(); if (!locked.current) onClose(); }} className="fixed inset-0 m-auto w-[calc(100%-2rem)] max-w-md rounded-2xl border border-slate-200 bg-white p-6 text-slate-950 shadow-xl backdrop:bg-[#ded8ff]/55 backdrop:backdrop-blur-sm">
     <form onSubmit={submit} className="grid gap-4">
       <h2 id="visibility-title" className="text-lg font-semibold">{hidden ? "Show amounts" : "Hide amounts"}</h2>
-      <p className="text-sm text-slate-600">Enter your login password to change amount visibility across the app.</p>
+      <p className="text-sm text-slate-600">Change amount visibility across the app.</p>
       <Field label="Account login password"><input autoFocus className={inputClass} type="password" autoComplete="current-password" value={password} onChange={event => setPassword(event.target.value)} required disabled={busy} /></Field>
       {error && <p role="alert" className="text-sm text-rose-700">{error}</p>}
       <div className="flex justify-end gap-2"><Button variant="secondary" disabled={busy} onClick={onClose}>Cancel</Button><Button type="submit" confirm={false} loading={busy} disabled={busy || !password}>Confirm</Button></div>

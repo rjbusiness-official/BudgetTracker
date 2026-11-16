@@ -5,7 +5,7 @@ import { useAmountPrivacy } from "@/src/context/AmountPrivacyContext";
 import { useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { HashRouter, Navigate, NavLink, Route, Routes, useLocation } from "react-router-dom";
-import { ArrowLeft, ArrowDown, ArrowUp, ArrowRightLeft, CalendarDays, CheckCircle, CreditCard, Heart, Landmark, LayoutDashboard, Settings, ChevronRight, LogOut, Pencil, PhilippinePeso, PiggyBank, Receipt, ShoppingCart, Target, Trash2, TrendingDown, TrendingUp, Wallet } from "lucide-react";
+import { ArrowLeft, ArrowDown, ArrowUp, ArrowRightLeft, CalendarDays, CheckCircle, CreditCard, Heart, Landmark, LayoutDashboard, ChevronRight, LogOut, Pencil, PhilippinePeso, PiggyBank, Receipt, ShoppingCart, Target, Trash2, TrendingDown, TrendingUp, Wallet } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { preventPageZoom } from "@/src/utils/zoom";
 import DashboardCharts from "./DashboardCharts";
@@ -115,7 +115,7 @@ function AppShell() {
           <nav aria-label="Main navigation" className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4 lg:flex lg:min-h-0 lg:flex-1 lg:flex-col lg:overflow-hidden">
             <NavLink to="/dashboard" className={({isActive}) => cn("flex shrink-0 items-center gap-3 rounded-full px-4 py-3.5 text-sm font-medium transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#249fff]", isActive ? "bg-[#1e1e29] text-white" : "text-[#4e5263] hover:bg-[#f2f0fa]")}><LayoutDashboard size={20} strokeWidth={1.6}/><span>Dashboard</span></NavLink>
             <div className="contents lg:grid lg:min-h-0 lg:content-start lg:gap-2 lg:overflow-y-auto lg:overscroll-contain">
-            {([{to:"/expenses",label:"Todays Expense",icon:Receipt},{to:"/income",label:"Money In",icon:PhilippinePeso},{to:"/transfers",label:"Transfer Funds",icon:ArrowRightLeft},{to:"/receivables",label:"Receivables",icon:Landmark},{to:"/debts",label:"Debts",icon:CreditCard},{to:"/savings",label:"Savings",icon:PiggyBank},{to:"/settings",label:"Settings",icon:Settings}]).map(({to,label,icon:Icon})=><NavLink key={to} to={to} className={({isActive})=>cn("flex items-center gap-3 rounded-full px-4 py-3.5 text-sm font-medium transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#249fff]",isActive || (to==="/settings" && ["/bills","/wishlist","/expense-types","/wallet-settings","/savings-settings"].includes(location.pathname))?"bg-[#1e1e29] text-white":"text-[#4e5263] hover:bg-[#f2f0fa]")}><Icon size={20} strokeWidth={1.6}/><span>{label}</span></NavLink>)}
+            {([{to:"/expenses",label:"Todays Expense",icon:Receipt},{to:"/income",label:"Money In",icon:PhilippinePeso},{to:"/transfers",label:"Transfer Funds",icon:ArrowRightLeft},{to:"/receivables",label:"Receivables",icon:Landmark},{to:"/debts",label:"Debts",icon:CreditCard},{to:"/savings",label:"Savings",icon:PiggyBank},{to:"/wallets",label:"Wallets",icon:Wallet}]).map(({to,label,icon:Icon})=><NavLink key={to} to={to} className={({isActive})=>cn("flex items-center gap-3 rounded-full px-4 py-3.5 text-sm font-medium transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#249fff]",isActive?"bg-[#1e1e29] text-white":"text-[#4e5263] hover:bg-[#f2f0fa]")}><Icon size={20} strokeWidth={1.6}/><span>{label}</span></NavLink>)}
             </div>
           </nav>
           <div className="mt-auto hidden shrink-0 pt-10 lg:block"><div className="rounded-[24px] bg-[#e3dcf6] p-5"><span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-white/70 text-[#7956b5]"><Heart size={22}/></span><h2 className="mt-4 text-lg font-semibold">Building a future.</h2><p className="mt-2 text-sm leading-6 text-[#5d5573]">A part of all you earn is yours to keep.</p><NavLink to="/income" className="mt-5 inline-flex items-center gap-2 text-sm font-semibold">plan your salary <ChevronRight size={16}/></NavLink></div></div>
@@ -130,6 +130,7 @@ function AppShell() {
             <Route path="/transfers" element={<TransferFunds />} />
             <Route path="/receivables" element={<ReceivablesPage />} />
             <Route path="/savings" element={<SavingsPage />} />
+            <Route path="/wallets" element={<WalletsPage />} />
             <Route path="/expenses" element={<TodayExpenses />} />
             <Route path="/expense-history" element={<ExpensesPage />} />
             <Route path="/bills" element={<BillsPage />} />
@@ -239,6 +240,10 @@ function LedgerRow({ left, meta, amount, action }: { left: string; meta: string;
 
 
 
+
+function WalletsPage() {
+  return <div className="grid gap-4"><PageHeader title="Wallets" description="All bank, digital wallet, and cash balances for Ruru and Joselle." actions={<NavLink to="/wallet-settings" className="rounded-md border bg-white px-4 py-2 text-sm font-semibold text-violet-700">Manage wallets</NavLink>} /><WalletBalances /></div>;
+}
 
 function WalletBalances() {
   const { state } = useBudget();

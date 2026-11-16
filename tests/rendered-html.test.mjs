@@ -41,7 +41,7 @@ test("keeps the current workflow and removes retired routes", async () => {
   assert.ok(source.includes('<Route path="/" element={<Navigate to="/dashboard" replace />} />'));
   assert.equal(source.includes("function ActionHomePage"), false);
   const routes = [...source.matchAll(/<Route path="([^"]+)"/g)].map(match => match[1]);
-  assert.deepEqual(routes, ["/", "/dashboard", "/income", "/transfers", "/receivables", "/savings", "/expenses", "/expense-history", "/bills", "/debts", "/wishlist", "/transactions", "/settings", "/expense-types", "/wallet-settings", "/savings-settings", "*"]);
+  assert.deepEqual(routes, ["/", "/dashboard", "/income", "/transfers", "/receivables", "/savings", "/wallets", "/expenses", "/expense-history", "/bills", "/debts", "/wishlist", "/transactions", "/settings", "/expense-types", "/wallet-settings", "/savings-settings", "*"]);
   assert.ok(source.includes("<span>Dashboard</span>"));
-  for (const label of ["Todays Expense", "Money In", "Receivables"]) assert.ok(source.includes('label:"' + label + '"'));
+  for (const label of ["Todays Expense", "Money In", "Receivables", "Wallets"]) assert.ok(source.includes('label:"' + label + '"'));
 });
