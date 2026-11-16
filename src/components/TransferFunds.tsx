@@ -33,7 +33,7 @@ export default function TransferFunds() {
     setNotice(formatCurrency(Number(amount)) + " transferred from " + source + " to " + destination + " for " + person + ".");
     setAmount(""); setNotes("");
   };
-  return <div className="mx-auto grid max-w-3xl gap-5">
+  return <div className="mx-auto grid w-full max-w-3xl lg:max-w-none gap-5">
     <PageHeader title="Transfer Funds" description="Move money between wallets, from a wallet to savings, or from savings to a wallet." />
     <Panel>{!transferMethods.length && <p className="mb-4 text-sm text-slate-600">Add an account in Settings → Banks, Wallets &amp; Cash to transfer funds.</p>}<form onSubmit={submit} className="grid gap-4">
       <Field label="Whose funds?"><select className={inputClass} value={person} onChange={event=>{setPerson(event.target.value as FundTransfer["person"]);if(from.startsWith("savings:"))setFrom("");if(to.startsWith("savings:"))setTo("");setNotice("");setError("");}}><option>Ruru</option><option>Joselle</option></select></Field>

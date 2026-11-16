@@ -80,7 +80,7 @@ export function SavingsSettings() {
     actions.upsertSavingsGoal({name:trimmed,owner,paymentMethod:bank,targetAmount:0,currentSavings:0,contributionThisCutoff:0,targetDate:""});
     setName("");setNotice(trimmed + " savings created for " + owner + " at " + bank + ".");
   };
-  return <div className="mx-auto grid max-w-3xl gap-5">
+  return <div className="mx-auto grid w-full max-w-3xl lg:max-w-none gap-5">
     <PageHeader title="Add new savings" description="Name your savings, choose who it belongs to, and select where it is kept." />
     <Panel><form onSubmit={submit} className="grid gap-4">
       <Field label="Name of savings"><input className={inputClass} required maxLength={80} value={name} onChange={event=>setName(event.target.value)} placeholder="e.g. Emergency Fund" /></Field>
@@ -115,7 +115,7 @@ export function SavingsPage() {
     if (result) {setError(result);return;}
     setNotice(formatCurrency(Number(amount)) + " added to " + goal.name + " at " + goal.paymentMethod + ".");setAmount("");
   };
-  return <div className="mx-auto grid max-w-3xl gap-5">
+  return <div className="mx-auto grid w-full max-w-3xl lg:max-w-none gap-5">
     <PageHeader title="Savings" description="Add money to a named savings account." actions={<NavLink className="text-sm font-semibold text-[#1676ba]" to="/savings-settings">Add new savings</NavLink>}/>
     <Panel><form onSubmit={submit} className="grid gap-4">
       <Field label="Who?"><select className={inputClass} value={owner} onChange={event=>{setOwner(event.target.value as SavingsOwner);setGoalId("");setError("");setNotice("");}}>{owners.map(person=><option key={person}>{person}</option>)}</select></Field>

@@ -91,7 +91,7 @@ function AppShell() {
   const showBack = location.pathname !== "/";
   return (
     <div
-      className="min-h-screen bg-[#b9b0cc] p-3 text-[#1e1e29] md:p-6 lg:h-dvh lg:min-h-0 lg:overflow-hidden lg:p-9"
+      className="min-h-screen bg-[#b9b0cc] p-3 text-[#1e1e29] md:p-6 lg:h-dvh lg:min-h-0 lg:overflow-hidden lg:p-3"
       onWheelCapture={(event) => {
         // Release number inputs before the browser can step their value on scroll.
         if (event.target instanceof HTMLInputElement && event.target.type === "number") {
@@ -99,8 +99,12 @@ function AppShell() {
         }
       }}
     >
-      <div className="mx-auto grid min-h-[calc(100vh-48px)] w-full max-w-[1600px] gap-5 rounded-[36px] bg-[#f0f0f2] p-2 lg:h-full lg:min-h-0 lg:grid-cols-[235px_minmax(0,1fr)] lg:grid-rows-[minmax(0,1fr)] lg:overflow-hidden lg:p-3">
-        <aside className="flex flex-col rounded-[28px] bg-white p-4 lg:min-h-0 lg:overflow-hidden">
+      <div className="mx-auto grid min-h-[calc(100vh-48px)] w-full max-w-[1600px] lg:max-w-none gap-5 rounded-[36px] bg-[#f0f0f2] p-2 lg:h-full lg:min-h-0 lg:grid-cols-[235px_minmax(0,1fr)] lg:grid-rows-[auto_minmax(0,1fr)] lg:overflow-hidden lg:p-3">
+          <header className="flex shrink-0 flex-wrap items-center justify-between gap-3 rounded-[26px] bg-white px-5 py-4 lg:col-start-2 lg:row-start-1 shadow-[0_8px_30px_rgba(30,30,40,0.04)]">
+            <div className="flex items-center gap-3">{showBack ? <BackToChoices /> : <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[#f1f1f3]"><CalendarDays size={20}/></span>}<p className="text-sm text-[#696979]">{new Intl.DateTimeFormat("en-PH",{weekday:"short",month:"short",day:"numeric",year:"numeric",timeZone:"Asia/Manila"}).format(new Date())}</p></div>
+            <div className="flex items-center gap-3"><span className="hidden text-sm font-medium sm:block">{data.state.profile.husbandName} & {data.state.profile.wifeName}</span><span className="flex h-10 w-10 items-center justify-center rounded-full bg-[#e3dcf6] text-sm font-semibold" aria-hidden="true">{data.state.profile.husbandName.slice(0,1)}{data.state.profile.wifeName.slice(0,1)}</span><Button variant="ghost" confirm="Sign out of your budget tracker?" onClick={signOut}><span className="inline-flex items-center gap-2 whitespace-nowrap"><LogOut size={17} aria-hidden="true" /><span>Sign out</span></span></Button></div>
+          </header>
+        <aside className="flex flex-col rounded-[28px] bg-white p-4 lg:col-start-1 lg:row-start-1 lg:row-span-2 lg:min-h-0 lg:overflow-hidden">
           <NavLink to="/" className="flex shrink-0 items-center gap-2 px-1 py-5">
             <span className="relative flex h-10 w-10 items-center justify-center rounded-full bg-[#c28afb] text-white"><Wallet size={23}/><span className="absolute -bottom-1 -left-1 h-3 w-3 rounded-full bg-[#80e9f4] ring-2 ring-white"/></span>
             <span className="text-lg font-bold tracking-tight text-[#191923]">Budget Tracker</span>
@@ -111,14 +115,11 @@ function AppShell() {
             {([{to:"/expenses",label:"Todays Expense",icon:Receipt},{to:"/income",label:"Money In",icon:PhilippinePeso},{to:"/transfers",label:"Transfer Funds",icon:ArrowRightLeft},{to:"/receivables",label:"Receivables",icon:Landmark},{to:"/debts",label:"Debts",icon:CreditCard},{to:"/savings",label:"Savings",icon:PiggyBank},{to:"/settings",label:"Settings",icon:Settings}]).map(({to,label,icon:Icon})=><NavLink key={to} to={to} className={({isActive})=>cn("flex items-center gap-3 rounded-full px-4 py-3.5 text-sm font-medium transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#249fff]",isActive || (to==="/settings" && ["/bills","/wishlist","/expense-types","/wallet-settings","/savings-settings"].includes(location.pathname))?"bg-[#1e1e29] text-white":"text-[#4e5263] hover:bg-[#f2f0fa]")}><Icon size={20} strokeWidth={1.6}/><span>{label}</span></NavLink>)}
             </div>
           </nav>
-          <div className="mt-auto hidden shrink-0 pt-10 lg:block"><div className="rounded-[24px] bg-[#e3dcf6] p-5"><span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-white/70 text-[#7956b5]"><Heart size={22}/></span><h2 className="mt-4 text-lg font-semibold">Building a future.</h2><p className="mt-2 text-sm leading-6 text-[#5d5573]">Budgeting isn’t about limiting yourself — it’s about making the things that excite you possible.</p><NavLink to="/income" className="mt-5 inline-flex items-center gap-2 text-sm font-semibold">plan your salary <ChevronRight size={16}/></NavLink></div></div>
+          <div className="mt-auto hidden shrink-0 pt-10 lg:block"><div className="rounded-[24px] bg-[#e3dcf6] p-5"><span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-white/70 text-[#7956b5]"><Heart size={22}/></span><h2 className="mt-4 text-lg font-semibold">Building a future.</h2><p className="mt-2 text-sm leading-6 text-[#5d5573]">A part of all you earn is yours to keep.</p><NavLink to="/income" className="mt-5 inline-flex items-center gap-2 text-sm font-semibold">plan your salary <ChevronRight size={16}/></NavLink></div></div>
         </aside>
-        <div className="min-w-0 px-1 py-1 lg:flex lg:min-h-0 lg:flex-col lg:overflow-hidden lg:px-0">
-          <header className="mb-5 flex shrink-0 flex-wrap items-center justify-between gap-3 rounded-[26px] bg-white px-5 py-4 shadow-[0_8px_30px_rgba(30,30,40,0.04)]">
-            <div className="flex items-center gap-3">{showBack ? <BackToChoices /> : <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[#f1f1f3]"><CalendarDays size={20}/></span>}<p className="text-sm text-[#696979]">{new Intl.DateTimeFormat("en-PH",{weekday:"short",month:"short",day:"numeric",year:"numeric",timeZone:"Asia/Manila"}).format(new Date())}</p></div>
-            <div className="flex items-center gap-3"><span className="hidden text-sm font-medium sm:block">{data.state.profile.husbandName} & {data.state.profile.wifeName}</span><span className="flex h-10 w-10 items-center justify-center rounded-full bg-[#e3dcf6] text-sm font-semibold" aria-hidden="true">{data.state.profile.husbandName.slice(0,1)}{data.state.profile.wifeName.slice(0,1)}</span><Button variant="ghost" confirm="Sign out of your budget tracker?" onClick={signOut}><span className="inline-flex items-center gap-2 whitespace-nowrap"><LogOut size={17} aria-hidden="true" /><span>Sign out</span></span></Button></div>
-          </header>
-          <main className="min-w-0 pb-3 lg:min-h-0 lg:flex-1 lg:overflow-y-auto lg:overscroll-contain lg:px-1" tabIndex={0}>
+
+
+          <main className="min-w-0 pb-3 lg:col-start-2 lg:row-start-2 lg:min-h-0 lg:overflow-y-auto lg:overscroll-contain lg:px-1" tabIndex={0}>
           <Routes>
             <Route path="/" element={<Navigate to="/dashboard" replace />} />
             <Route path="/dashboard" element={<DashboardPage />} />
@@ -139,7 +140,6 @@ function AppShell() {
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
           </main>
-        </div>
       </div>
     </div>
   );
@@ -181,7 +181,7 @@ function DashboardPage() {
   const ruruRemaining = remainingFor("Ruru");
   const joselleRemaining = remainingFor("Joselle");
   const balance = Math.round((ruruRemaining + joselleRemaining) * 100) / 100;
-  return <div className="mx-auto grid max-w-4xl gap-4">
+  return <div className="mx-auto grid w-full max-w-4xl lg:max-w-none gap-4">
     <PageHeader title="Financial Summary" description="Track income, spending, wallets, and savings." actions={<NavLink to="/settings" className="rounded-md border bg-white px-4 py-2 text-sm font-semibold text-violet-700">Settings</NavLink>} />
     <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
       <SummaryCard label="Remaining Money" value={formatCurrency(balance)} helper={[
@@ -244,7 +244,7 @@ function WalletBalances() {
 
 function ExpensesPage() {
  const { state, actions } = useBudget();
- return <div className="mx-auto grid max-w-4xl gap-4"><PageHeader title="Expense history" description="Review expenses recorded through Todays Expense." actions={<NavLink to="/expenses" className="text-sm font-semibold text-violet-700">Record expenses</NavLink>}/><Panel><div className="grid gap-3">{[...state.expenses].sort((a,b)=>b.date.localeCompare(a.date)).map(expense=><LedgerRow key={expense.id} left={expense.name} meta={[expense.payeeName,formatShortDate(expense.date),expense.category,expense.paidBy,expense.paymentMethod,expense.notes].filter(Boolean).join(" | ")} amount={expense.amount} action={<Button confirm="Delete this expense? This will update your wallet balance." variant="ghost" onClick={()=>actions.deleteExpense(expense.id)} title="Delete expense"><Trash2 size={16}/></Button>}/>)}{!state.expenses.length&&<EmptyState title="No expenses yet" description="Record an expense to see it here."/>}</div></Panel></div>;
+ return <div className="mx-auto grid w-full max-w-4xl lg:max-w-none gap-4"><PageHeader title="Expense history" description="Review expenses recorded through Todays Expense." actions={<NavLink to="/expenses" className="text-sm font-semibold text-violet-700">Record expenses</NavLink>}/><Panel><div className="grid gap-3">{[...state.expenses].sort((a,b)=>b.date.localeCompare(a.date)).map(expense=><LedgerRow key={expense.id} left={expense.name} meta={[expense.payeeName,formatShortDate(expense.date),expense.category,expense.paidBy,expense.paymentMethod,expense.notes].filter(Boolean).join(" | ")} amount={expense.amount} action={<Button confirm="Delete this expense? This will update your wallet balance." variant="ghost" onClick={()=>actions.deleteExpense(expense.id)} title="Delete expense"><Trash2 size={16}/></Button>}/>)}{!state.expenses.length&&<EmptyState title="No expenses yet" description="Record an expense to see it here."/>}</div></Panel></div>;
 }
 
 
@@ -263,7 +263,7 @@ function BillsPage() {
     setName("");
     setError("");
   };
-  return <div className="mx-auto grid max-w-3xl gap-5">
+  return <div className="mx-auto grid w-full max-w-3xl lg:max-w-none gap-5">
     <PageHeader title="Monthly Allocation Bills" description="Manage the bill categories used when you allocate your salary." />
     <Panel>
       <ul className="divide-y divide-[#ececf1]">{categories.map(category => <li key={category} className="flex items-center justify-between gap-3 py-3"><span className="font-medium">{category}</span><Button confirm="Remove this option from Settings?" variant="ghost" title={"Remove " + category} onClick={() => actions.setMonthlyBillCategories(categories.filter(item => item !== category))}><Trash2 size={16} /><span className="sr-only">Remove {category}</span></Button></li>)}</ul>
@@ -335,7 +335,7 @@ function ExpenseTypesSettings() {
     actions.setExpenseTypes([...types, type]);
     setName(""); setError("");
   };
-  return <div className="mx-auto grid max-w-3xl gap-5">
+  return <div className="mx-auto grid w-full max-w-3xl lg:max-w-none gap-5">
     <PageHeader title="Expense Types" description="Choose the types available in Todays Expense. Removing a type keeps past expenses unchanged." />
     <Panel>
     <ul className="mt-3 divide-y divide-[#ececf1]">{types.map(type => <li key={type} className="flex items-center justify-between gap-3 py-2"><span>{type}</span><Button confirm="Remove this option from Settings?" variant="ghost" title={"Remove " + type} onClick={() => actions.setExpenseTypes(types.filter(item => item !== type))}><Trash2 size={16}/><span className="sr-only">Remove {type}</span></Button></li>)}</ul>
@@ -366,7 +366,7 @@ function WalletMethodsSettings() {
     }
     actions.setWalletMethods(methods.filter(item => item !== method)); setError("");
   };
-  return <div className="mx-auto grid max-w-3xl gap-5">
+  return <div className="mx-auto grid w-full max-w-3xl lg:max-w-none gap-5">
     <PageHeader title="Banks, Wallets & Cash" description="Manage the accounts used for money in, expenses, and fund transfers." />
     <Panel><ul className="divide-y divide-[#ececf1]">{methods.map(method => <li key={method} className="flex items-center justify-between gap-3 py-3"><span className="font-medium">{method}</span><Button confirm="Remove this option from Settings?" variant="ghost" title={"Remove " + method} onClick={() => remove(method)}><Trash2 size={16}/><span className="sr-only">Remove {method}</span></Button></li>)}</ul>
       {!methods.length && <p className="py-3 text-sm text-slate-500">Add an account to start recording money.</p>}
