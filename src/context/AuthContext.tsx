@@ -125,7 +125,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     );
   }
 
-  return <AuthContext.Provider value={value}><AmountPrivacyProvider key={user.id} userId={user.id} verifyPassword={verifyPassword}>{children}</AmountPrivacyProvider></AuthContext.Provider>;
+  return <AuthContext.Provider value={value}><AmountPrivacyProvider key={user.id} verifyPassword={verifyPassword}>{children}</AmountPrivacyProvider></AuthContext.Provider>;
 }
 
 function AuthShell({ title, message }: { title: string; message: string }) {
