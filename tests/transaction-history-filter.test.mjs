@@ -50,10 +50,9 @@ test('category changes remove other categories despite shared record IDs and sel
   assert.deepEqual(keys(), ['Expense:tx-food', 'Fund Transfer:tx-shared']);
   change('Filter by user', 'Joselle');
   assert.deepEqual(keys(), ['Fund Transfer:tx-shared']);
-  change('Filter from date', '2026-11-21');
-  change('Filter to date', '2026-11-21');
+  change('Filter by date', '2026-11-21');
   assert.deepEqual(keys(), ['Fund Transfer:tx-shared']);
-  change('Filter to date', '2026-11-20');
+  change('Filter by date', '2026-11-20');
   assert.deepEqual(keys(), []);
   find(tree, node => node.type === 'button' && node.props.children === 'Clear filters')[0].props.onClick();
   tree = render();
