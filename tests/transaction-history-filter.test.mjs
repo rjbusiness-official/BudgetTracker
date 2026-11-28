@@ -10,14 +10,14 @@ const component = source.slice(source.indexOf('function TransactionHistoryPage()
 
 test('category changes remove other categories despite shared record IDs and select the correct details', () => {
   const records = [
-    { id: 'tx-shared', type: 'Savings Contribution', category: 'Savings', date: '2026-11-20', description: 'Deposit' },
-    { id: 'tx-shared', type: 'Fund Transfer', category: 'Wallet Transfer', date: '2026-11-21', description: 'Transfer' },
-    { id: 'tx-food', type: 'Expense', category: 'Food', date: '2026-11-22', description: 'Lunch' },
+    { id: 'tx-shared', type: 'Savings Contribution', category: 'Savings', date: '2026-11-20', description: 'Deposit', person: 'Ruru', wallet: 'Cash', destination: 'Emergency' },
+    { id: 'tx-shared', type: 'Fund Transfer', category: 'Wallet Transfer', date: '2026-11-21', description: 'Transfer', person: 'Joselle', wallet: 'Cash', destination: 'GCash' },
+    { id: 'tx-food', type: 'Expense', category: 'Food', date: '2026-11-22', description: 'Lunch', person: 'Ruru', wallet: 'GCash' },
   ];
   const values = [];
   let cursor = 0;
   const context = {
-    React, Intl, Date, inputClass: '', PageHeader: 'header', Panel: 'section', StatusBadge: 'span', MoneyDisplay: 'span', TransactionDetails: 'dialog',
+    transactionDetails: (_, transaction) => ({ person: transaction.person, wallet: transaction.wallet || 'Not recorded', destination: transaction.destination }), Button: 'button', React, Intl, Date, inputClass: '', PageHeader: 'header', Panel: 'section', StatusBadge: 'span', MoneyDisplay: 'span', TransactionDetails: 'dialog',
     formatShortDate: value => value, useActiveFinance: () => ({ state: {} }), buildTransactions: () => records,
     useState: initial => { const index = cursor++; if (!(index in values)) values[index] = initial; return [values[index], value => { values[index] = value; }]; },
   };
@@ -30,7 +30,7 @@ test('category changes remove other categories despite shared record IDs and sel
     visit(node); return result;
   };
   let tree = render();
-  const rows = find(tree, node => node.type === 'button');
+  const rows = find(tree, node => node.type === 'button' && node.props['aria-haspopup'] === 'dialog');
   assert.equal(new Set(rows.map(row => row.key)).size, records.length);
   rows[1].props.onClick();
   tree = render();
@@ -39,6 +39,24 @@ test('category changes remove other categories despite shared record IDs and sel
     find(tree, node => node.props['aria-label'] === 'Filter by category')[0].props.onChange({ target: { value: category } });
     tree = render();
     const expected = records.filter(record => category === 'All' || record.category === category).sort((a, b) => b.date.localeCompare(a.date));
-    assert.deepEqual(find(tree, node => node.type === 'button').map(row => row.key), expected.map(record => record.type + ':' + record.id));
+    assert.deepEqual(find(tree, node => node.type === 'button' && node.props['aria-haspopup'] === 'dialog').map(row => row.key), expected.map(record => record.type + ':' + record.id));
   }
+  const change = (label, value) => {
+    find(tree, node => node.props['aria-label'] === label)[0].props.onChange({ target: { value } });
+    tree = render();
+  };
+  const keys = () => find(tree, node => node.props['aria-haspopup'] === 'dialog').map(row => row.key);
+  change('Filter by wallet', 'GCash');
+  assert.deepEqual(keys(), ['Expense:tx-food', 'Fund Transfer:tx-shared']);
+  change('Filter by user', 'Joselle');
+  assert.deepEqual(keys(), ['Fund Transfer:tx-shared']);
+  change('Filter from date', '2026-11-21');
+  change('Filter to date', '2026-11-21');
+  assert.deepEqual(keys(), ['Fund Transfer:tx-shared']);
+  change('Filter to date', '2026-11-20');
+  assert.deepEqual(keys(), []);
+  find(tree, node => node.type === 'button' && node.props.children === 'Clear filters')[0].props.onClick();
+  tree = render();
+  assert.equal(keys().length, 3);
+
 });
