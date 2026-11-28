@@ -81,3 +81,24 @@ test("wallet to savings to wallet conserves the original funds", () => {
  const after=applyFundTransfer(funded,transfer({id:"return",fromGoalId:"goal",toMethod:"BDO"}));
  assert.equal(walletBalance(after,"Ruru","BDO"),1000);assert.equal(totalSavings(after),0);
 });
+
+for (const [sender, recipient, incomeOwner] of [["Ruru", "Joselle", "Husband"], ["Joselle", "Ruru", "Wife"]]) {
+ for (const fromSavings of [false, true]) for (const toSavings of [false, true]) {
+  test(sender + " to " + recipient + ": " + (fromSavings ? "savings" : "wallet") + " to " + (toSavings ? "savings" : "wallet"), () => {
+   const state = fresh(); state.incomes[0].person = incomeOwner;
+   state.savingsGoals = [{id:"source",name:"Source",owner:sender,paymentMethod:"BDO",currentSavings:500,contributionThisCutoff:0},{id:"destination",name:"Destination",owner:recipient,paymentMethod:"BDO",currentSavings:100,contributionThisCutoff:0}];
+   const input = transfer({person:sender,toPerson:recipient,toMethod:"BDO",fromGoalId:fromSavings ? "source" : undefined,toGoalId:toSavings ? "destination" : undefined});
+   assert.equal(fundTransferError(state,input), "");
+   const after = JSON.parse(JSON.stringify(applyFundTransfer(state,input)));
+   assert.equal(walletBalance(after,sender,"BDO"),fromSavings ? 1000 : 700);
+   assert.equal(walletBalance(after,recipient,"BDO"),toSavings ? 0 : 300);
+   assert.equal(after.savingsGoals[0].currentSavings,fromSavings ? 200 : 500);
+   assert.equal(after.savingsGoals[1].currentSavings,toSavings ? 400 : 100);
+   assert.equal(totalSavings(after) + walletBalance(after,sender,"BDO") + walletBalance(after,recipient,"BDO"),1600);
+   assert.equal(applyFundTransfer(after,input),after);
+   assert.equal(buildTransactions(after).filter(tx=>tx.id==="tx-transfer" && tx.type==="Fund Transfer").length,1);
+   assert.equal(applyFundTransfer(state,{...input,toPerson:"Unknown"}),state);
+   assert.equal(applyFundTransfer(state,{...input,amount:1001}),state);
+  });
+ }
+}

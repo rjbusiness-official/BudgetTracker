@@ -73,6 +73,7 @@ export function transactionDetails(state: BudgetState, transaction: Transaction)
       wallet = record?.fromGoalId ? state.savingsGoals.find(item => item.id === record.fromGoalId)?.name || record.fromGoalName || "Savings" : record?.fromMethod;
       destination = record?.toGoalId ? state.savingsGoals.find(item => item.id === record.toGoalId)?.name || "Savings" : record?.toMethod;
       person = record?.person;
+      payee = record?.toPerson || record?.person;
       comments = record?.notes;
       break;
     }
